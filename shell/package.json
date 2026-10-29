@@ -1,7 +1,7 @@
 {
   "name": "breeze-tts-2-desktop",
   "productName": "Breeze TTS 2",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Breeze TTS 2 桌面端：Electron 外壳 + 本地推理后端",
   "main": "main.js",
   "author": "dkvkvk",
