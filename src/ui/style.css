@@ -202,3 +202,8 @@ audio{width:100%;height:34px;filter:grayscale(1)}
 .api-table code,.api-code{font-family:var(--mono)}
 .api-code{background:var(--soft);border:1px solid var(--line);padding:12px 14px;font-size:12px;line-height:1.7;overflow:auto;margin:0 0 12px}
 
+
+/* 启动页：下载 / 选本地模型 两个按钮 */
+.boot-pick { margin: 0 4px; }
+.boot-alt { background: transparent; color: var(--muted); border: 1px solid var(--line-strong); }
+.boot-alt:hover { color: var(--fg); border-color: var(--fg); }

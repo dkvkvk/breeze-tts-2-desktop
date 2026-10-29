@@ -452,11 +452,20 @@ function boot() {
     $('sideMeta').innerHTML = 'v' + (s.version || '?') + '<br>' + (s.backend || '') + (s.serverPort ? ('　端口 ' + s.serverPort) : '');
     if (!s.modelPresent) {
       $('bootText').textContent = '尚未安装模型';
+      if ($('bootHint').querySelector('.boot-pick')) return;
       var b = document.createElement('button');
       b.className = 'btn btn-primary';
       b.textContent = '下载模型（2.4 GB）';
       b.onclick = function () { b.remove(); downloadFlow(); };
+      b.classList.add('boot-pick');
       $('bootHint').appendChild(b);
+      var b2 = document.createElement('button');
+      b2.className = 'btn btn-sm boot-pick boot-alt';
+      b2.textContent = '使用本地模型文件…';
+      b2.onclick = function () {
+        fetch('/local/pick-model', { method: 'POST' }).then(function () { boot(); });
+      };
+      $('bootHint').appendChild(b2);
       return;
     }
     if (!s.serverReady) {

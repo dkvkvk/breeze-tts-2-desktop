@@ -91,6 +91,10 @@ function start(opts) {
       if (p === '/local/status') return json(res, backend.status());
       if (p === '/local/download' && req.method === 'POST') { backend.startDownload(); return json(res, { ok: true }); }
       if (p === '/local/quit' && req.method === 'POST') { json(res, { ok: true }); setTimeout(() => hooks && hooks.quit && hooks.quit(), 200); return; }
+      if (p === '/local/pick-model' && req.method === 'POST') {
+        const ok = hooks && hooks.pickModel ? await hooks.pickModel() : false;
+        return json(res, { ok, status: backend.status() });
+      }
       if (p === '/local/voices-dir' && req.method === 'POST') { hooks && hooks.openVoices && hooks.openVoices(); return json(res, { ok: true }); }
       if (p === '/local/logs-dir' && req.method === 'POST') { hooks && hooks.openLogs && hooks.openLogs(); return json(res, { ok: true }); }
       return serveStatic(res, uiDir, p);

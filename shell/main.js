@@ -30,9 +30,61 @@ function iconPath() {
   return cands.find(p => fs.existsSync(p));
 }
 
-function dataDir() {
-  return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'BreezeTTS2');
+/* 所有数据只放安装目录：模型 / 音色 / 日志 / Chromium 缓存都不落 C 盘用户目录 */
+function dataRoot() {
+  if (process.env.BREEZE_DATA) return process.env.BREEZE_DATA;
+  return app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..', '.data');
 }
+
+/* 把旧版（C# 外壳、数据在 %LOCALAPPDATA%）的音色与模型路径带过来 */
+function migrateLegacy(root) {
+  const legacy = path.join(process.env.LOCALAPPDATA || '', 'BreezeTTS2');
+  if (!legacy || !fs.existsSync(legacy)) return;
+  try {
+    const src = path.join(legacy, 'voices');
+    const dst = path.join(root, 'voices');
+    if (fs.existsSync(src)) {
+      const files = fs.readdirSync(src);
+      const empty = !fs.existsSync(dst) || fs.readdirSync(dst).length === 0;
+      if (empty && files.length) {
+        fs.mkdirSync(dst, { recursive: true });
+        for (const f of files) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+        backend.log('已迁移 ' + files.length + ' 个音色到 ' + dst);
+      }
+    }
+    const oldMarker = path.join(legacy, 'model-path.txt');
+    const newMarker = path.join(root, 'model-path.txt');
+    if (fs.existsSync(oldMarker) && !fs.existsSync(newMarker)) {
+      const target = fs.readFileSync(oldMarker, 'utf8').split(/\r?\n/)[0].trim();
+      if (target && fs.existsSync(target)) {
+        fs.writeFileSync(newMarker, target + '\r\n', 'utf8');
+        backend.log('已接管旧模型路径 ' + target);
+      }
+    }
+  } catch (e) { backend.log('迁移旧数据失败: ' + e.message); }
+}
+
+/* 让用户直接选本地 gguf，不必把 2.4 GB 挪来挪去 */
+async function pickModel() {
+  const r = await dialog.showOpenDialog(win, {
+    title: '选择本地模型文件（.gguf）',
+    properties: ['openFile'],
+    defaultPath: paths ? paths.modelsDir : undefined,
+    filters: [{ name: 'GGUF 模型', extensions: ['gguf'] }]
+  });
+  if (r.canceled || !r.filePaths.length) return false;
+  backend.stop();
+  const ok = backend.setModelPath(r.filePaths[0]);
+  if (ok) backend.start();
+  return ok;
+}
+
+/* Chromium 的缓存/GPUCache 也改到安装目录，别写 C 盘 */
+try {
+  const cache = path.join(dataRoot(), 'cache');
+  fs.mkdirSync(cache, { recursive: true });
+  app.setPath('userData', cache);
+} catch (e) { }
 
 /* ---------------- 单实例 ---------------- */
 if (!SELFTEST) {
@@ -122,14 +174,18 @@ function createWindow(show) {
 }
 
 async function boot() {
-  paths = backend.init({ runtime: runtimeDir(), dataDir: dataDir(), srvPort: 18099 });
-  backend.log('Breeze TTS 2 ' + backend.VERSION + ' starting, runtime=' + paths.runtime);
+  const root = dataRoot();
+  fs.mkdirSync(root, { recursive: true });
+  paths = backend.init({ runtime: runtimeDir(), dataRoot: root, srvPort: 18099 });
+  migrateLegacy(root);
+  backend.log('Breeze TTS 2 ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
   const bound = await uiServer.start({
     uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend,
     hooks: {
       quit: () => { quitting = true; app.quit(); },
       openVoices: () => shell.openPath(paths.voicesDir),
-      openLogs: () => shell.openPath(paths.logsDir)
+      openLogs: () => shell.openPath(paths.logsDir),
+      pickModel: pickModel
     }
   });
   uiPort = bound.port;
@@ -142,7 +198,8 @@ async function selftest() {
   const out = [];
   const check = (name, ok, extra) => out.push((ok ? 'PASS' : 'FAIL') + ' | ' + name + (extra ? ' | ' + extra : ''));
   try {
-    paths = backend.init({ runtime: runtimeDir(), dataDir: dataDir(), srvPort: 18099 });
+    fs.mkdirSync(dataRoot(), { recursive: true });
+    paths = backend.init({ runtime: runtimeDir(), dataRoot: dataRoot(), srvPort: 18099 });
     check('路径解析', !!paths.modelPath, paths.modelPath);
     check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
     const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, hooks: {} });

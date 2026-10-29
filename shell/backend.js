@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const VERSION = '2.0.1';
+const VERSION = '2.0.2';
 const MODEL_FILE = 'breeze-tts-2-q4_k.gguf';
 const MODEL_URLS = [
   'https://huggingface.co/HoppouAI/Breeze-TTS-2.cpp/resolve/main/' + MODEL_FILE,
@@ -21,22 +21,34 @@ let paths = null;
 let child = null;
 let pollTimer = null;
 
+/* dataRoot 是安装目录：模型、音色、日志、缓存全部落在程序自己旁边，不写 C 盘 */
 function init(opts) {
-  const dataDir = opts.dataDir;
+  const root = opts.dataRoot || opts.dataDir;
   paths = {
     runtime: opts.runtime,
-    dataDir,
-    voicesDir: path.join(dataDir, 'voices'),
-    logsDir: path.join(dataDir, 'logs'),
+    dataRoot: root,
+    modelsDir: path.join(root, 'models'),
+    voicesDir: path.join(root, 'voices'),
+    logsDir: path.join(root, 'logs'),
+    cacheDir: path.join(root, 'cache'),
+    markerFile: path.join(root, 'model-path.txt'),
     modelPath: null,
     srvPort: opts.srvPort || 18099
   };
-  for (const d of [paths.dataDir, paths.voicesDir, paths.logsDir]) {
+  for (const d of [paths.modelsDir, paths.voicesDir, paths.logsDir]) {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) { log('mkdir ' + d + ' failed: ' + e.message); }
   }
-  paths.modelPath = findModel() || path.join(paths.dataDir, 'models', MODEL_FILE);
-  try { fs.mkdirSync(path.dirname(paths.modelPath), { recursive: true }); } catch (e) { }
+  paths.modelPath = findModel() || path.join(paths.modelsDir, MODEL_FILE);
   return paths;
+}
+
+/* 用户在界面上指定本地 gguf：写进 model-path.txt 并立即生效 */
+function setModelPath(file) {
+  if (!file || !fs.existsSync(file)) return false;
+  paths.modelPath = file;
+  try { fs.writeFileSync(paths.markerFile, file + '\r\n', 'utf8'); } catch (e) { log('写 model-path.txt 失败: ' + e.message); }
+  log('model set to ' + file);
+  return true;
 }
 
 /* 模型查找顺序：环境变量 -> model-path.txt -> 各 models 目录（先认标准文件名，再认任意 .gguf） */
@@ -44,10 +56,10 @@ function findModel() {
   const cands = [];
   if (process.env.BREEZE_MODEL) cands.push(process.env.BREEZE_MODEL);
   try {
-    const marker = fs.readFileSync(path.join(paths.dataDir, 'model-path.txt'), 'utf8').split(/\r?\n/)[0].trim();
+    const marker = fs.readFileSync(paths.markerFile, 'utf8').split(/\r?\n/)[0].trim();
     if (marker) cands.push(marker);
   } catch (e) { }
-  for (const dir of [path.join(paths.dataDir, 'models'), path.join(paths.runtime, 'models'), paths.runtime]) {
+  for (const dir of [paths.modelsDir, path.join(paths.runtime, 'models'), paths.runtime]) {
     cands.push(path.join(dir, MODEL_FILE));
     try {
       for (const f of fs.readdirSync(dir)) if (/\.gguf$/i.test(f)) cands.push(path.join(dir, f));
@@ -217,4 +229,4 @@ async function fetchTo(url, part, haveFn) {
   return true;
 }
 
-module.exports = { init, getPaths, status, start, stop, startDownload, modelPresent, log, VERSION, MODEL_FILE, state };
+module.exports = { init, getPaths, status, start, stop, startDownload, setModelPath, modelPresent, log, VERSION, MODEL_FILE, state };
