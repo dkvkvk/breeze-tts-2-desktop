@@ -86,11 +86,13 @@ POST   /api/audio/convert       变声转换
 
 ## 安装
 
-1. 从 [Releases](https://github.com/dkvkvk/breeze-tts-2-desktop/releases) 下载 `BreezeTTS2-Setup-2.0.0.exe`。
+1. 从 [Releases](https://github.com/dkvkvk/breeze-tts-2-desktop/releases) 下载 `BreezeTTS2-Setup-*.exe`（约 131 MB，自带运行时）。
 2. 双击安装。默认装到 `%LOCALAPPDATA%\Programs\Breeze TTS 2`，**点「浏览…」可以装到任意目录**（比如 D 盘）；装完自动创建**桌面快捷方式**和开始菜单项，卸载项进「设置 → 应用」。
 3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB），断点续传 + 镜像回退，界面上有进度。
 4. 模型就位后自动拉起后端，窗口里五页可用；关窗口 = 退出，后端进程一并结束。最小化到托盘后可右键菜单重新打开。
-5. 想换量化档（比如 Q6_K）：把新 gguf 放进 `%LOCALAPPDATA%\BreezeTTS2\models\`，**改名为 `breeze-tts-2-q4_k.gguf`** 即可——外壳按文件名找模型，换档前先退出程序。
+5. 换量化档或复用已有的 gguf：把文件放进 `%LOCALAPPDATA%\BreezeTTS2\models\`（认任意 `*.gguf`），
+   或者把绝对路径写进 `%LOCALAPPDATA%\BreezeTTS2\model-path.txt`（第一行），也可以用环境变量 `BREEZE_MODEL` 指定。
+   查找顺序：`BREEZE_MODEL` → `model-path.txt` → `%LOCALAPPDATA%\BreezeTTS2\models` → 安装目录的 `runtime\models`。换档前先退出程序。
 
 卸载走「设置 → 应用 → Breeze TTS 2」，或运行安装目录下的 `BreezeTTS2.exe --uninstall`。
 
