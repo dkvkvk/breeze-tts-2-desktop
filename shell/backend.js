@@ -34,15 +34,26 @@ function init(opts) {
   for (const d of [paths.dataDir, paths.voicesDir, paths.logsDir]) {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) { log('mkdir ' + d + ' failed: ' + e.message); }
   }
-  const cands = [
-    path.join(paths.dataDir, 'models', MODEL_FILE),
-    path.join(paths.runtime, 'models', MODEL_FILE),
-    path.join(paths.runtime, MODEL_FILE)
-  ];
-  paths.modelPath = cands.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } })
-    || path.join(paths.dataDir, 'models', MODEL_FILE);
+  paths.modelPath = findModel() || path.join(paths.dataDir, 'models', MODEL_FILE);
   try { fs.mkdirSync(path.dirname(paths.modelPath), { recursive: true }); } catch (e) { }
   return paths;
+}
+
+/* 模型查找顺序：环境变量 -> model-path.txt -> 各 models 目录（先认标准文件名，再认任意 .gguf） */
+function findModel() {
+  const cands = [];
+  if (process.env.BREEZE_MODEL) cands.push(process.env.BREEZE_MODEL);
+  try {
+    const marker = fs.readFileSync(path.join(paths.dataDir, 'model-path.txt'), 'utf8').split(/\r?\n/)[0].trim();
+    if (marker) cands.push(marker);
+  } catch (e) { }
+  for (const dir of [path.join(paths.dataDir, 'models'), path.join(paths.runtime, 'models'), paths.runtime]) {
+    cands.push(path.join(dir, MODEL_FILE));
+    try {
+      for (const f of fs.readdirSync(dir)) if (/\.gguf$/i.test(f)) cands.push(path.join(dir, f));
+    } catch (e) { }
+  }
+  return cands.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } });
 }
 
 function log(text) {
