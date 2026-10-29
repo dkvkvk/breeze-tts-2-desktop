@@ -22,7 +22,17 @@ Breeze TTS 2 桌面版 —— 第三方组件声明
           （ggml、Vulkan 运行时等，遵循各自原许可）。
 
 --------------------------------------------------
-3. 界面与启动器
+3. Microsoft WebView2 SDK
+--------------------------------------------------
+来源：https://www.nuget.org/packages/Microsoft.Web.WebView2
+许可：Microsoft 提供的 BSD 风格许可（见包内 LICENSE.txt）
+分发内容：Microsoft.Web.WebView2.Core.dll / Microsoft.Web.WebView2.WinForms.dll /
+          WebView2Loader.dll（构建时由 build\build.ps1 从 nuget.org 拉取）
+运行前提：目标机器需安装 WebView2 Runtime（Windows 10/11 通常预装）。
+          缺失时程序自动回退到默认浏览器打开界面。
+
+--------------------------------------------------
+4. 界面与启动器
 --------------------------------------------------
 src/ui 为原生 HTML/CSS/JavaScript，未使用任何前端框架或第三方库。
 src/launcher、src/setup 为 C# 源码，仅依赖 .NET Framework 4.x 基础类库。

@@ -3,3 +3,5 @@ out/
 .installtest/
 *.log
 *.part
+deps/
+webview/

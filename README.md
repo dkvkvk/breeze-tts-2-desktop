@@ -1,6 +1,6 @@
 # Breeze TTS 2 桌面版
 
-给 [Breeze TTS 2](https://github.com/HoppouAI/Breeze-TTS-2.cpp) 套一个能双击安装的 Windows 外壳：本地推理、纯黑白界面、全程离线。
+给 [Breeze TTS 2](https://github.com/HoppouAI/Breeze-TTS-2.cpp) 套一个能双击安装的 Windows 桌面程序：**打开是它自己的窗口**（WebView2 内嵌），不是浏览器标签页；本地推理、纯黑白界面、全程离线。
 
 后端是原版 `breeze-server` 的量化版（Q4_K），本项目**不含模型权重**，首次启动时下载。
 
@@ -11,6 +11,7 @@
 原版只有命令行和编译期嵌死的英文 WebUI。这个项目补上三件事：
 
 1. **一个安装包**——`BreezeTTS2Setup.exe`，双击即装，无需管理员权限，不带 2.4 GB 权重。
+   界面用系统自带的 WebView2 运行时渲染（Win10/11 预装），所以不用打包 Chromium，安装包只有 70 MB；万一系统缺 WebView2，会自动回退到浏览器打开。
 2. **一个中文界面**——音色设计 / 音色克隆 / 表演指挥 / 变声转换 / 音色库，五页全中文。
 3. **一个本地启动器**——`BreezeTTS2.exe` 负责拉起后端、代理接口、下载模型、卸载自己。
 
@@ -52,9 +53,10 @@ powershell -ExecutionPolicy Bypass -File build\build.ps1 -BreezeDir "D:\breeze-t
 
 ```
 src/launcher/Program.cs   启动器：静态页 + /api 反向代理 + 模型下载 + 卸载
-src/setup/Program.cs      安装器：自解压、写注册表、建快捷方式
+src/launcher/Window.cs    主窗口：WebView2 承载界面（STA 线程、多路径重试）
+src/setup/Program.cs      安装器：自解压、选目录、写注册表、建快捷方式
 src/ui/                   界面（原生 HTML/CSS/JS，无框架、无构建）
-build/build.ps1           编译 + 打包
+build/build.ps1           编译 + 打包（自动拉取 WebView2 SDK）
 ```
 
 启动器是唯一 origin：它把 `/api/*` 反代到后端的 `:18099`，所以**不需要给后端开 `--cors`**，也不会撞上跨域限制。

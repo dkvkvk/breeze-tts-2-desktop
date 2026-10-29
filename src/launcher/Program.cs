@@ -7,6 +7,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace Breeze
 {
@@ -29,6 +30,7 @@ namespace Breeze
         static readonly object QLock = new object();
         static readonly Queue<string> ServerLog = new Queue<string>();
 
+        [STAThread]
         static int Main(string[] args)
         {
             bool uninstall = false, noOpen = false;
@@ -52,6 +54,16 @@ namespace Breeze
 
             if (uninstall) { Uninstall(); return 0; }
 
+            string urlOverride = null;
+            for (int i = 0; i < args.Length; i++)
+                if (args[i] == "--url" && i + 1 < args.Length) urlOverride = args[i + 1];
+
+            if (urlOverride != null)
+            {
+                RunWindow(urlOverride);
+                return 0;
+            }
+
             bool created;
             Mutex single;
             try
@@ -61,7 +73,8 @@ namespace Breeze
             catch { created = true; single = null; }
             if (!created)
             {
-                OpenBrowser("http://127.0.0.1:" + UiPort + "/");
+                var show = FindShowEvent();
+                if (show != null) { try { show.Set(); } catch { } }
                 return 0;
             }
 
@@ -75,9 +88,11 @@ namespace Breeze
                 StartUi();
                 if (File.Exists(ModelPath)) StartServer(); else Msg("model missing, waiting for download");
                 AppDomain.CurrentDomain.ProcessExit += delegate { Shutdown(); };
-                Thread.Sleep(400);
-                if (!noOpen) OpenBrowser("http://127.0.0.1:" + UiPort + "/");
-                Thread.Sleep(Timeout.Infinite);
+                Thread.Sleep(300);
+                WatchShowRequests();
+                if (noOpen) Thread.Sleep(Timeout.Infinite);
+                else RunWindow("http://127.0.0.1:" + UiPort + "/");
+                if (FellBack) Thread.Sleep(Timeout.Infinite);
             }
             catch (Exception ex)
             {
@@ -118,6 +133,77 @@ namespace Breeze
         {
             try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
             catch (Exception ex) { Msg("打开浏览器失败: " + ex.Message); }
+        }
+
+        /* ---------------- 主窗口 ---------------- */
+        static volatile bool FellBack;
+        static MainWindow Wnd;
+        const string ShowEventName = "Local\\BreezeTTS2-SHOW";
+
+        static EventWaitHandle FindShowEvent()
+        {
+            try { return EventWaitHandle.OpenExisting(ShowEventName); }
+            catch { return null; }
+        }
+
+        static void RunWindow(string url)
+        {
+            FellBack = false;
+            try
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                string[] webDirs = new string[] {
+                    Path.Combine(DataDir, "webview"),
+                    Path.Combine(AppDir, "webview"),
+                    Path.Combine(Path.GetTempPath(), "BreezeTTS2-webview")
+                };
+                Wnd = new MainWindow(url, webDirs, delegate(string why)
+                {
+                    Msg(why + " —— 回退到浏览器");
+                    FellBack = true;
+                    OpenBrowser(url);
+                }, delegate(string info) { Msg(info); });
+                Application.Run(Wnd);
+                Msg("window closed");
+            }
+            catch (Exception ex)
+            {
+                Msg("窗口启动失败，回退到浏览器: " + ex.Message);
+                FellBack = true;
+                OpenBrowser(url);
+            }
+        }
+
+        /// <summary>第二个实例启动时唤起已有窗口，而不是什么都不做。</summary>
+        static void WatchShowRequests()
+        {
+            try
+            {
+                var ev = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+                var t = new Thread(delegate()
+                {
+                    while (true)
+                    {
+                        ev.WaitOne();
+                        if (Wnd == null) continue;
+                        try
+                        {
+                            Wnd.BeginInvoke((Action)delegate
+                            {
+                                if (Wnd.WindowState == FormWindowState.Minimized) Wnd.WindowState = FormWindowState.Normal;
+                                Wnd.Show();
+                                Wnd.Activate();
+                                Wnd.BringToFront();
+                            });
+                        }
+                        catch { }
+                    }
+                });
+                t.IsBackground = true;
+                t.Start();
+            }
+            catch (Exception ex) { Msg("show listener failed: " + ex.Message); }
         }
 
         /* ---------------- UI host ---------------- */
