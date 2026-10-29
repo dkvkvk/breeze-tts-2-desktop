@@ -159,3 +159,46 @@ audio{width:100%;height:34px;filter:grayscale(1)}
   .main{padding:32px 20px 90px}
   .grid2,.grid3{grid-template-columns:1fr}
 }
+
+/* ---------- 顶部 API 按钮 ---------- */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.top-main{min-width:0}
+.api-open{flex:none;letter-spacing:.08em;font-size:11px}
+
+/* ---------- 导入音色 ---------- */
+.import{border:1px solid var(--line);padding:20px;margin-bottom:26px}
+.imp-drop{border:1px dashed var(--line-strong);padding:24px 20px;text-align:center;transition:border-color .12s,background .12s}
+.imp-drop.drag{border-color:var(--fg);background:var(--soft)}
+.imp-title{font-size:15px;letter-spacing:.04em}
+.imp-sub{margin-top:6px;font-size:13px;color:var(--muted)}
+.imp-note{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.7}
+.link{background:none;border:0;padding:0;color:var(--fg);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:inherit;font-size:13px}
+.imp-list{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.imp-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:10px;align-items:center;border:1px solid var(--line);padding:10px 12px}
+.imp-row-name{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-row-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.imp-row input[type="text"]{width:100%;border:1px solid var(--line);padding:7px 9px;font:inherit;font-size:12.5px;background:#fff}
+.imp-row input[type="text"]:focus{outline:none;border-color:var(--fg)}
+.imp-state{font-size:11px;color:var(--muted);min-width:64px;text-align:right}
+.imp-state.ok{color:var(--fg)}
+.imp-state.err{color:#b00020}
+.imp-tip{font-size:11.5px;color:var(--muted);align-self:center}
+.imp-log{margin-top:10px;font-size:11.5px;color:var(--muted);white-space:pre-wrap}
+
+/* ---------- 接口说明弹窗 ---------- */
+.modal{position:fixed;inset:0;background:rgba(10,10,10,.28);display:flex;align-items:center;justify-content:center;z-index:40}
+.modal-box{background:#fff;border:1px solid var(--line-strong);width:min(720px,calc(100vw - 48px));max-height:calc(100vh - 80px);display:flex;flex-direction:column}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-title{font-size:14px;letter-spacing:.06em}
+.modal-body{padding:18px 20px 22px;overflow:auto}
+.api-block+.api-block{margin-top:22px}
+.api-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.api-copy-row{display:flex;align-items:center;gap:10px}
+.api-copy-row code{flex:1;background:var(--soft);border:1px solid var(--line);padding:9px 11px;font-family:var(--mono);font-size:12.5px;overflow:auto;white-space:nowrap}
+.api-hint{margin-top:8px;font-size:11.5px;color:var(--muted)}
+.api-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.api-table td{border-top:1px solid var(--line);padding:8px 0;vertical-align:top}
+.api-table td:first-child{width:210px;white-space:nowrap}
+.api-table code,.api-code{font-family:var(--mono)}
+.api-code{background:var(--soft);border:1px solid var(--line);padding:12px 14px;font-size:12px;line-height:1.7;overflow:auto;margin:0 0 12px}
+

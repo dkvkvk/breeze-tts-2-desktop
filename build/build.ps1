@@ -67,6 +67,7 @@ try {
     "-resource:src\ui\index.html,ui.index.html" `
     "-resource:src\ui\style.css,ui.style.css" `
     "-resource:src\ui\app.js,ui.app.js" `
+    "-resource:src\ui\audio.js,ui.audio.js" `
     -r:System.dll -r:System.Core.dll -r:System.Drawing.dll -r:System.Windows.Forms.dll `
     -r:deps\Microsoft.Web.WebView2.Core.dll -r:deps\Microsoft.Web.WebView2.WinForms.dll `
     src\launcher\Program.cs src\launcher\Window.cs

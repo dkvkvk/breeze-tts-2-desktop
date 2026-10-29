@@ -41,12 +41,57 @@ python build/make-icon.py     # 产出 assets/icon.ico
 
 音频是**流式**的：后端以 `audio/pcm` 分块返回（24 kHz / s16le / 单声道），前端边收边播，第一块到了就开始出声，不等整段生成完。
 
+## 导入音色
+
+音色库页面的「导入音色」区可以把音频直接拖进去（或点「选择文件」），支持多选、批量导入。
+
+- **格式**：`wav` / `mp3` / `m4a` / `flac` / `ogg` —— 凡是浏览器能解码的都行，导入时统一转成后端要的 **24 kHz 单声道 16-bit WAV**（44.1k/48k、立体声、各种码率都不用管）。
+- **参考文本**：每个文件都要填和录音逐字一致的文本，这是克隆质量的关键；建议 6–15 秒干净单人声，超过 30 秒自动截断。
+- **`.btv` 音色包**：zip 里放 `voice.json` + 参考音频，方便分享给别人直接导入：
+
+  ```json
+  { "name": "narrator", "ref_text": "参考音频的逐字文本", "description": "低沉男声", "audio": "ref.wav" }
+  ```
+
+免费音色素材（都能直接下参考音频，注意各自许可）：
+
+| 来源 | 语言 | 许可 | 备注 |
+| --- | --- | --- | --- |
+| [AISHELL-3](https://huggingface.co/datasets/AISHELL/AISHELL-3) | 中文 | Apache-2.0 | 218 位说话人、带转录，最适合找中文音色 |
+| [CSTR-Edinburgh/vctk](https://huggingface.co/datasets/CSTR-Edinburgh/vctk) | 英文 | CC BY 4.0 | 上百位说话人，录音干净 |
+| [openslr/librispeech_asr](https://huggingface.co/datasets/openslr/librispeech_asr) | 英文 | CC BY 4.0 | 有声书朗读，附 `.trans.txt` 转录 |
+| [Mozilla Common Voice](https://commonvoice.mozilla.org/datasets) | 多语种 | CC0 | 众包录音，质量参差，附 `.tsv` 句子 |
+
+> 上面的许可只约束**素材本身**；合成出来的音频还要另外遵守 Breeze TTS 2 权重的非商业条款。
+
+## 本机接口
+
+界面右上角「API」按钮能查看接口地址并一键复制。程序运行期间在本机开三个端口：
+
+| 端口 | 用途 |
+| --- | --- |
+| `18080` | 界面 + 反代，`/api/*` 转发到后端 `/v1/*` |
+| `18099` | 后端 REST |
+| `18100` | WebSocket（HTTP 端口 + 1） |
+
+```
+GET    /api/health              健康检查
+POST   /api/audio/speech        合成，返回 24 kHz 单声道 PCM（audio/pcm）
+POST   /api/voices              注册音色：ref_audio + ref_text + name
+GET    /api/voices              列出音色
+DELETE /api/voices/<id>         移除音色
+POST   /api/audio/convert       变声转换
+```
+
+两个端口都没有鉴权，只绑 `127.0.0.1`；要给局域网调用，得自己加一层反代和鉴权。
+
 ## 安装
 
-1. 下载 Releases 里的 `BreezeTTS2Setup.exe`（约 70 MB）。
+1. 下载 Releases 里的 `BreezeTTS2Setup.exe`（约 56 MB）。
 2. 双击安装。默认装到 `%LOCALAPPDATA%\Programs\BreezeTTS2`，**点「浏览…」可以装到任意目录**（比如 D 盘）；安装向导会先探测目标目录是否可写，不可写直接报错让你换位置。装完创建开始菜单和桌面快捷方式。
 3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB）。下载支持断点续传和镜像回退。
-4. 模型就位后自动拉起后端，浏览器打开 `http://127.0.0.1:18080`。
+4. 模型就位后自动拉起后端，弹出的是 **WebView2 窗口**（不是浏览器标签页）；WebView2 起不来时才会退回默认浏览器。
+5. 想换量化档（比如 Q6_K）：把新 gguf 放进安装目录的 `models\`，**改名为 `breeze-tts-2-q4_k.gguf`** 即可——启动器按文件名找模型，换档前先退出程序。
 
 卸载走「设置 → 应用 → Breeze TTS 2」，或运行安装目录下的 `BreezeTTS2.exe --uninstall`。
 

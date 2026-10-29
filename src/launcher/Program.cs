@@ -13,7 +13,7 @@ namespace Breeze
 {
     static class Program
     {
-        const string VERSION = "1.0.0";
+        const string VERSION = "1.1.0";
         const string MODEL_FILE = "breeze-tts-2-q4_k.gguf";
         const string MODEL_URL = "https://huggingface.co/HoppouAI/Breeze-TTS-2.cpp/resolve/main/" + MODEL_FILE;
         const string MIRROR_URL = "https://hf-mirror.com/HoppouAI/Breeze-TTS-2.cpp/resolve/main/" + MODEL_FILE;

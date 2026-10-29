@@ -473,6 +473,7 @@ function boot() {
     loadVoices();
     var h = (location.hash || '').replace('#', '');
     switchTab(PAGES[h] ? h : 'design');
+    if (h === 'api') $('api-open').click();
   }).catch(function (e) {
     $('bootText').textContent = '无法连接本地服务';
     $('bootHint').textContent = String(e.message || e);
@@ -486,3 +487,244 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
 bindDesign(); bindClone(); bindDirect(); bindConvert();
 boot();
+
+/* ---------------- 导入音色 ---------------- */
+var impQueue = [];
+var IMP_MAX_SECONDS = 30;
+
+function impStem(name) {
+  var s = String(name || '').replace(/\.[^.]+$/, '');
+  s = s.replace(/[^\w\-]+/g, '_').replace(/^_+|_+$/g, '');
+  return s || ('voice_' + (impQueue.length + 1));
+}
+
+function impRow(it) {
+  var row = document.createElement('div');
+  row.className = 'imp-row';
+  var head = document.createElement('div');
+  head.className = 'imp-row-head';
+  var nm = document.createElement('div');
+  nm.className = 'imp-row-name';
+  nm.textContent = it.name;
+  nm.title = it.file ? it.file.name : it.name;
+  var meta = document.createElement('div');
+  meta.className = 'imp-row-meta';
+  meta.textContent = '读取中…';
+  head.appendChild(nm); head.appendChild(meta);
+
+  var txt = document.createElement('input');
+  txt.type = 'text';
+  txt.placeholder = '参考文本（与录音逐字一致）';
+  txt.value = it.refText || '';
+  txt.oninput = function () { it.refText = txt.value; };
+
+  var st = document.createElement('span');
+  st.className = 'imp-state';
+  st.textContent = '读取中';
+
+  row.appendChild(head); row.appendChild(txt); row.appendChild(st);
+  it.el = { row: row, meta: meta, state: st, text: txt };
+  $('imp-list').appendChild(row);
+  return it;
+}
+
+function impUpdate(it) {
+  if (!it.el) return;
+  var st = it.el.state, meta = it.el.meta;
+  if (it.status === 'reading') { st.className = 'imp-state'; st.textContent = '读取中'; meta.textContent = '解码中…'; return; }
+  if (it.status === 'error') { st.className = 'imp-state err'; st.textContent = '失败'; meta.textContent = it.error || '无法解码'; return; }
+  if (it.status === 'running') { st.className = 'imp-state'; st.textContent = '导入中'; return; }
+  if (it.status === 'done') { st.className = 'imp-state ok'; st.textContent = '已导入'; return; }
+  st.className = 'imp-state';
+  st.textContent = '待导入';
+  meta.textContent = it.seconds.toFixed(1) + ' 秒 · ' + fmtSize(it.blob.size) + (it.trimmed ? ' · 已截断到 ' + IMP_MAX_SECONDS + ' 秒' : '');
+}
+
+function impRefreshActions() {
+  var live = impQueue.filter(function (it) { return it.status === 'ready' || it.status === 'error' || it.status === 'done'; });
+  $('imp-actions').hidden = impQueue.length === 0;
+  $('imp-go').disabled = !impQueue.some(function (it) { return it.status === 'ready'; });
+  $('imp-clear').disabled = live.length === 0 && impQueue.length === 0;
+}
+
+function impAddFile(f) {
+  var it = { file: f, name: impStem(f.name), refText: '', status: 'reading' };
+  impQueue.push(it);
+  impRow(it); impUpdate(it); impRefreshActions();
+  BreezeAudio.prepare(f, IMP_MAX_SECONDS).then(function (res) {
+    it.blob = res.blob; it.seconds = res.seconds; it.trimmed = res.trimmed; it.status = 'ready';
+    impUpdate(it); impRefreshActions();
+  }).catch(function (e) {
+    it.status = 'error'; it.error = '解码失败：' + String((e && e.message) || e);
+    impUpdate(it); impRefreshActions();
+  });
+}
+
+function impAddPack(f) {
+  var holder = { file: f, name: impStem(f.name), refText: '', status: 'reading' };
+  impQueue.push(holder);
+  impRow(holder); impUpdate(holder); impRefreshActions();
+  holder.el.meta.textContent = '解析音色包…';
+  f.arrayBuffer().then(function (buf) {
+    return BreezeAudio.zipEntries(buf).then(function (entries) {
+      var json = entries.filter(function (e) { return /(^|\/)voice\.json$/i.test(e.name); })[0];
+      var audio = entries.filter(function (e) { return /\.(wav|mp3|m4a|flac|ogg)$/i.test(e.name); })[0];
+      if (!audio) throw new Error('音色包里没有音频文件');
+      var metaP = json ? BreezeAudio.readEntry(buf, json).then(function (u8) {
+        try { return JSON.parse(new TextDecoder().decode(u8)); } catch (e) { return {}; }
+      }) : Promise.resolve({});
+      return metaP.then(function (meta) {
+        return BreezeAudio.readEntry(buf, audio).then(function (u8) {
+          var mime = /\.mp3$/i.test(audio.name) ? 'audio/mpeg' : (/\.(m4a)$/i.test(audio.name) ? 'audio/mp4' : 'audio/wav');
+          return { meta: meta || {}, file: new File([u8], audio.name, { type: mime }) };
+        });
+      });
+    });
+  }).then(function (pack) {
+    var meta = pack.meta || {};
+    holder.file = pack.file;
+    holder.name = impStem(meta.name || holder.name);
+    holder.refText = meta.ref_text || '';
+    if (holder.el.text) holder.el.text.value = holder.refText;
+    if (holder.el.row.firstChild.firstChild) holder.el.row.firstChild.firstChild.textContent = holder.name;
+    return BreezeAudio.prepare(pack.file, IMP_MAX_SECONDS);
+  }).then(function (res) {
+    holder.blob = res.blob; holder.seconds = res.seconds; holder.trimmed = res.trimmed; holder.status = 'ready';
+    impUpdate(holder); impRefreshActions();
+  }).catch(function (e) {
+    holder.status = 'error'; holder.error = '音色包读取失败：' + String((e && e.message) || e);
+    impUpdate(holder); impRefreshActions();
+  });
+}
+
+function impFiles(fileList) {
+  Array.prototype.slice.call(fileList).forEach(function (f) {
+    if (/\.(btv|zip)$/i.test(f.name)) impAddPack(f);
+    else impAddFile(f);
+  });
+}
+
+function impClear() {
+  impQueue = [];
+  $('imp-list').innerHTML = '';
+  $('imp-log').textContent = '';
+  impRefreshActions();
+}
+
+function impRun() {
+  var todo = impQueue.filter(function (it) { return it.status === 'ready'; });
+  if (!todo.length) { toast('没有待导入的文件'); return; }
+  $('imp-go').disabled = true;
+  var ok = 0, fail = 0;
+  var chain = Promise.resolve();
+  todo.forEach(function (it) {
+    chain = chain.then(function () {
+      it.status = 'running'; impUpdate(it);
+      var fd = new FormData();
+      fd.append('ref_audio', it.blob, (it.name || 'ref') + '.wav');
+      fd.append('ref_text', it.refText || '');
+      fd.append('name', it.name);
+      return fetch('/api/voices', { method: 'POST', body: fd }).then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t.slice(0, 160) || ('HTTP ' + r.status)); });
+        return r.json().catch(function () { return {}; });
+      }).then(function () {
+        it.status = 'done'; ok++; impUpdate(it);
+      }).catch(function (e) {
+        it.status = 'error'; it.error = String((e && e.message) || e); fail++; impUpdate(it);
+      });
+    });
+  });
+  chain.then(function () {
+    $('imp-log').textContent = '完成：成功 ' + ok + ' 个' + (fail ? ('，失败 ' + fail + ' 个') : '') + '。';
+    impRefreshActions();
+    return loadVoices();
+  }).then(function () { toast(fail ? ('导入完成，' + fail + ' 个失败') : '音色导入完成'); });
+}
+
+function bindImport() {
+  var drop = $('imp-drop'), pick = $('imp-pick'), input = $('imp-file');
+  pick.onclick = function (e) { e.preventDefault(); input.click(); };
+  drop.onclick = function (e) { if (e.target !== pick) input.click(); };
+  input.onchange = function () { if (input.files && input.files.length) impFiles(input.files); input.value = ''; };
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('drag'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('drag'); });
+  });
+  drop.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) impFiles(e.dataTransfer.files);
+  });
+  $('imp-go').onclick = impRun;
+  $('imp-clear').onclick = impClear;
+  impRefreshActions();
+}
+
+/* ---------------- 接口说明 ---------------- */
+function apiBase() { return location.origin + '/api'; }
+
+function apiSnippet(base) {
+  return [
+    'import urllib.request',
+    '',
+    'BASE = "' + base + '"',
+    '',
+    '# 1) 合成，返回 24kHz 单声道 PCM（audio/pcm，16-bit little-endian）',
+    '#    POST BASE/audio/speech   multipart: text  + 可选 instruction / voice_id',
+    'def tts(text, instruction="", voice_id=""):',
+    '    b = "----x"',
+    '    body = b""',
+    '    for k, v in [("text", text), ("instruction", instruction), ("voice_id", voice_id)]:',
+    '        if v:',
+    '            body += ("--%s\\r\\nContent-Disposition: form-data; name=\\"%s\\"\\r\\n\\r\\n%s\\r\\n" % (b, k, v)).encode()',
+    '    body += ("--%s--\\r\\n" % b).encode()',
+    '    req = urllib.request.Request(BASE + "/audio/speech", data=body, method="POST")',
+    '    req.add_header("Content-Type", "multipart/form-data; boundary=" + b)',
+    '    return urllib.request.urlopen(req, timeout=300).read()   # 裸 PCM',
+    '',
+    '# 2) 注册音色   POST BASE/voices   ref_audio(wav) + ref_text + name',
+    '# 3) 列出音色   GET  BASE/voices',
+    '# 4) 删除音色   DELETE BASE/voices/<id>',
+    '# 5) 变声转换   POST BASE/audio/convert   source(wav) + voice_id',
+    '# 6) 健康检查   GET  BASE/health'
+  ].join('\n');
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(function () { return legacyCopy(text); });
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+function legacyCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) { }
+  document.body.removeChild(ta);
+}
+
+function bindApi() {
+  var modal = $('api-modal');
+  var base = apiBase();
+  $('api-base').textContent = base;
+  $('api-snippet').textContent = apiSnippet(base);
+  $('api-open').onclick = function () { modal.hidden = false; };
+  $('api-close').onclick = function () { modal.hidden = true; };
+  modal.onclick = function (e) { if (e.target === modal) modal.hidden = true; };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') modal.hidden = true; });
+  $('api-copy-base').onclick = function () {
+    copyText(base).then(function () { toast('已复制接口地址'); });
+  };
+  $('api-copy-all').onclick = function () {
+    copyText(base + '\n\n' + apiSnippet(base)).then(function () { toast('已复制地址与示例'); });
+  };
+}
+
+bindImport();
+bindApi();
+
