@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -17,11 +16,12 @@ namespace BreezeSetup
         const string MAGIC = "BREEZESF";
         const int TRAILER = 24;
 
-        Label title, sub, note;
+        Label title, sub, pathLabel, note;
+        TextBox pathBox;
+        Button browse, primary, cancel;
         Panel barBg, bar;
-        Button close;
-        string target;
-        bool done, failed;
+        bool failed, installing;
+
         public static string OverrideTarget;
 
         public SetupForm()
@@ -29,7 +29,7 @@ namespace BreezeSetup
             Text = "Breeze TTS 2 安装程序";
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(520, 240);
+            ClientSize = new Size(520, 330);
             BackColor = Color.White;
             Font = new Font("Microsoft YaHei UI", 9f);
 
@@ -37,18 +37,40 @@ namespace BreezeSetup
             title.Text = "B R E E Z E   T T S   2";
             title.Font = new Font("Segoe UI", 12f);
             title.ForeColor = Color.Black;
-            title.SetBounds(40, 40, 440, 26);
+            title.SetBounds(40, 36, 440, 26);
             Controls.Add(title);
 
             sub = new Label();
-            sub.Text = "正在解压程序文件";
+            sub.Text = "选择安装位置，然后点安装";
             sub.ForeColor = Color.FromArgb(120, 120, 120);
-            sub.SetBounds(40, 74, 440, 20);
+            sub.SetBounds(40, 68, 440, 20);
             Controls.Add(sub);
+
+            pathLabel = new Label();
+            pathLabel.Text = "安 装 位 置";
+            pathLabel.Font = new Font("Segoe UI", 8f);
+            pathLabel.ForeColor = Color.FromArgb(150, 150, 150);
+            pathLabel.SetBounds(40, 104, 440, 18);
+            Controls.Add(pathLabel);
+
+            pathBox = new TextBox();
+            pathBox.BorderStyle = BorderStyle.FixedSingle;
+            pathBox.Text = DefaultTarget();
+            pathBox.SetBounds(40, 126, 348, 24);
+            Controls.Add(pathBox);
+
+            browse = new Button();
+            browse.Text = "浏览...";
+            browse.FlatStyle = FlatStyle.Flat;
+            browse.FlatAppearance.BorderColor = Color.FromArgb(180, 180, 180);
+            browse.BackColor = Color.White;
+            browse.SetBounds(398, 125, 82, 26);
+            browse.Click += delegate { PickFolder(); };
+            Controls.Add(browse);
 
             barBg = new Panel();
             barBg.BackColor = Color.FromArgb(228, 228, 228);
-            barBg.SetBounds(40, 110, 440, 2);
+            barBg.SetBounds(40, 172, 440, 2);
             Controls.Add(barBg);
 
             bar = new Panel();
@@ -58,28 +80,92 @@ namespace BreezeSetup
 
             note = new Label();
             note.ForeColor = Color.FromArgb(150, 150, 150);
-            note.SetBounds(40, 128, 440, 40);
-            note.Text = "";
+            note.SetBounds(40, 188, 440, 60);
+            note.Text = "程序约 230 MB。模型权重不在此安装包内，首次启动时下载（约 2.4 GB）。";
             Controls.Add(note);
 
-            close = new Button();
-            close.Text = "完成";
-            close.Enabled = false;
-            close.SetBounds(400, 186, 80, 28);
-            close.FlatStyle = FlatStyle.Flat;
-            close.FlatAppearance.BorderColor = Color.FromArgb(180, 180, 180);
-            close.BackColor = Color.White;
-            close.Click += delegate
+            cancel = new Button();
+            cancel.Text = "取消";
+            cancel.FlatStyle = FlatStyle.Flat;
+            cancel.FlatAppearance.BorderColor = Color.FromArgb(180, 180, 180);
+            cancel.BackColor = Color.White;
+            cancel.SetBounds(310, 262, 82, 30);
+            cancel.Click += delegate { Close(); };
+            Controls.Add(cancel);
+
+            primary = new Button();
+            primary.Text = "安装";
+            primary.FlatStyle = FlatStyle.Flat;
+            primary.FlatAppearance.BorderSize = 0;
+            primary.BackColor = Color.Black;
+            primary.ForeColor = Color.White;
+            primary.SetBounds(398, 262, 82, 30);
+            primary.Click += delegate { BeginInstall(); };
+            Controls.Add(primary);
+
+            MouseDown += delegate(object s, MouseEventArgs e)
             {
-                if (failed) { Close(); return; }
-                try { Process.Start(Path.Combine(target, "BreezeTTS2.exe")); } catch { }
-                Close();
+                if (e.Button == MouseButtons.Left) { Native.ReleaseCapture(); Native.SendMessage(Handle, 0xA1, 0x2, 0); }
             };
-            Controls.Add(close);
 
-            MouseDown += delegate (object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Native.ReleaseCapture(); Native.SendMessage(Handle, 0xA1, 0x2, 0); } };
+            if (!string.IsNullOrEmpty(OverrideTarget))
+            {
+                pathBox.Text = OverrideTarget;
+                Load += delegate { BeginInstall(); };
+            }
+        }
 
-            Load += delegate { ThreadPool.QueueUserWorkItem(delegate { Install(); }); };
+        static string DefaultTarget()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "BreezeTTS2");
+        }
+
+        void PickFolder()
+        {
+            using (var dlg = new FolderBrowserDialog())
+            {
+                dlg.Description = "选择 Breeze TTS 2 的安装位置";
+                dlg.ShowNewFolderButton = true;
+                string cur = pathBox.Text.TrimEnd('\\');
+                try
+                {
+                    DirectoryInfo d = new DirectoryInfo(cur);
+                    while (d != null && !d.Exists) d = d.Parent;
+                    if (d != null) dlg.SelectedPath = d.FullName;
+                }
+                catch { }
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    string picked = dlg.SelectedPath;
+                    if (!string.Equals(Path.GetFileName(picked), "BreezeTTS2", StringComparison.OrdinalIgnoreCase))
+                        picked = Path.Combine(picked, "BreezeTTS2");
+                    pathBox.Text = picked;
+                }
+            }
+        }
+
+        void BeginInstall()
+        {
+            if (installing) return;
+            string target = pathBox.Text.Trim();
+            if (target.Length < 4)
+            {
+                note.Text = "请填写安装位置。";
+                return;
+            }
+            try { target = Path.GetFullPath(target); } catch { note.Text = "路径不合法。"; return; }
+
+            installing = true;
+            pathBox.Text = target;
+            pathBox.Enabled = false;
+            browse.Enabled = false;
+            primary.Enabled = false;
+            cancel.Enabled = false;
+            cancel.Text = "完成后关闭";
+            sub.Text = "正在解压程序文件";
+            note.Text = "";
+            string t = target;
+            ThreadPool.QueueUserWorkItem(delegate { Install(t); });
         }
 
         void SetBar(int pct)
@@ -95,22 +181,49 @@ namespace BreezeSetup
             catch { }
         }
 
-        void Finish(bool ok, string message)
+        void Finish(bool ok, string message, string target)
         {
             try
             {
                 BeginInvoke((MethodInvoker)delegate
                 {
                     failed = !ok;
-                    done = true;
+                    installing = false;
                     sub.Text = ok ? "安装完成" : "安装失败";
                     note.Text = message;
-                    close.Enabled = true;
-                    close.Text = ok ? "启动程序" : "关闭";
-                    if (ok) bar.Width = barBg.Width;
+                    cancel.Enabled = true;
+                    cancel.Text = "关闭";
+                    primary.Enabled = true;
+                    primary.Text = ok ? "启动程序" : "重试";
+                    primary.BackColor = Color.Black;
+                    if (ok)
+                    {
+                        bar.Width = barBg.Width;
+                        pathLabel.Visible = false;
+                        pathBox.Visible = false;
+                        browse.Visible = false;
+                        primary.Click -= RestartInstall;
+                        primary.Click += delegate
+                        {
+                            try { Process.Start(Path.Combine(target, "BreezeTTS2.exe")); } catch { }
+                            Close();
+                        };
+                    }
+                    else
+                    {
+                        primary.Click -= RestartInstall;
+                        primary.Click += RestartInstall;
+                    }
                 });
             }
             catch { }
+        }
+
+        void RestartInstall(object sender, EventArgs e)
+        {
+            pathBox.Enabled = true;
+            browse.Enabled = true;
+            BeginInstall();
         }
 
         static void Log(string s)
@@ -119,21 +232,18 @@ namespace BreezeSetup
             catch { }
         }
 
-        void Install()
+        void Install(string target)
         {
             try
             {
-                Log("install start, self=" + Assembly.GetExecutingAssembly().Location);
+                Log("install start -> " + target);
                 string self = Assembly.GetExecutingAssembly().Location;
                 long off, size;
-                if (!ReadTrailer(self, out off, out size)) { Finish(false, "安装包已损坏（找不到数据段）"); return; }
-                Log("payload offset=" + off + " size=" + size);
+                if (!ReadTrailer(self, out off, out size)) { Finish(false, "安装包已损坏（找不到数据段）", target); return; }
                 SetBar(8);
 
-                target = !string.IsNullOrEmpty(SetupForm.OverrideTarget)
-                    ? SetupForm.OverrideTarget
-                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "BreezeTTS2");
                 Directory.CreateDirectory(target);
+                if (!CanWrite(target)) { Finish(false, "没有写入权限：" + target + "，请换一个位置。", target); return; }
 
                 using (var host = File.OpenRead(self))
                 using (var zip = new ZipArchive(new SliceStream(host, off, size), ZipArchiveMode.Read))
@@ -153,27 +263,43 @@ namespace BreezeSetup
                             e.ExtractToFile(dest, true);
                         }
                         i++;
-                        if (i % 3 == 0) SetBar(18 + (int)(70.0 * i / Math.Max(1, total)));
+                        if (i % 3 == 0) SetBar(8 + (int)(72.0 * i / Math.Max(1, total)));
                     }
                 }
                 Log("extracted to " + target);
-                SetBar(90);
+                SetBar(86);
 
                 MakeShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Breeze TTS 2"),
                              "Breeze TTS 2", Path.Combine(target, "BreezeTTS2.exe"));
                 MakeShortcut(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
                              "Breeze TTS 2", Path.Combine(target, "BreezeTTS2.exe"));
-                WriteRegistry();
-
+                WriteRegistry(target);
                 SetBar(100);
-                Finish(true, "已安装到 " + target + Environment.NewLine +
-                             "首次启动需要下载 2.4 GB 模型文件。");
+
+                Finish(true, "已安装到 " + target + Environment.NewLine + "首次启动需要下载模型文件（约 2.4 GB）。", target);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Log("FAIL " + ex.Message);
+                Finish(false, "没有写入权限：" + target + Environment.NewLine + "请点浏览换一个位置。", target);
             }
             catch (Exception ex)
             {
                 Log("FAIL " + ex.ToString());
-                Finish(false, ex.Message);
+                Finish(false, ex.Message, target);
             }
+        }
+
+        static bool CanWrite(string dir)
+        {
+            try
+            {
+                string probe = Path.Combine(dir, ".write-test");
+                File.WriteAllText(probe, "x");
+                File.Delete(probe);
+                return true;
+            }
+            catch { return false; }
         }
 
         static bool ReadTrailer(string self, out long off, out long size)
@@ -185,8 +311,7 @@ namespace BreezeSetup
                 var buf = new byte[TRAILER];
                 fs.Seek(fs.Length - TRAILER, SeekOrigin.Begin);
                 if (fs.Read(buf, 0, TRAILER) != TRAILER) return false;
-                string magic = Encoding.ASCII.GetString(buf, 0, 8);
-                if (magic != MAGIC) return false;
+                if (Encoding.ASCII.GetString(buf, 0, 8) != MAGIC) return false;
                 off = BitConverter.ToInt64(buf, 8);
                 size = BitConverter.ToInt64(buf, 16);
                 return off > 0 && size > 0 && off + size <= fs.Length;
@@ -200,17 +325,17 @@ namespace BreezeSetup
                 Directory.CreateDirectory(dir);
                 var t = Type.GetTypeFromProgID("WScript.Shell");
                 object shell = Activator.CreateInstance(t);
-                object lnk = t.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell,
+                object lnk = t.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell,
                                             new object[] { Path.Combine(dir, name + ".lnk") });
-                lnk.GetType().InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, lnk, new object[] { exe });
-                lnk.GetType().InvokeMember("WorkingDirectory", System.Reflection.BindingFlags.SetProperty, null, lnk, new object[] { Path.GetDirectoryName(exe) });
-                lnk.GetType().InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, lnk, new object[] { "Breeze TTS 2 本地语音合成" });
-                lnk.GetType().InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, lnk, null);
+                lnk.GetType().InvokeMember("TargetPath", BindingFlags.SetProperty, null, lnk, new object[] { exe });
+                lnk.GetType().InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, lnk, new object[] { Path.GetDirectoryName(exe) });
+                lnk.GetType().InvokeMember("Description", BindingFlags.SetProperty, null, lnk, new object[] { "Breeze TTS 2 本地语音合成" });
+                lnk.GetType().InvokeMember("Save", BindingFlags.InvokeMethod, null, lnk, null);
             }
             catch { }
         }
 
-        void WriteRegistry()
+        static void WriteRegistry(string target)
         {
             try
             {
@@ -232,12 +357,10 @@ namespace BreezeSetup
         }
     }
 
-    /// <summary>把安装包内的一段字节伪装成可寻址流，供 ZipArchive 直接读取。</summary>
     sealed class SliceStream : Stream
     {
         readonly Stream inner;
-        readonly long start;
-        readonly long length;
+        readonly long start, length;
         long pos;
 
         public SliceStream(Stream inner, long start, long length)

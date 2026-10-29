@@ -31,7 +31,7 @@
 ## 安装
 
 1. 下载 Releases 里的 `BreezeTTS2Setup.exe`（约 70 MB）。
-2. 双击安装，默认装到 `%LOCALAPPDATA%\Programs\BreezeTTS2`，创建开始菜单和桌面快捷方式。
+2. 双击安装。默认装到 `%LOCALAPPDATA%\Programs\BreezeTTS2`，**点「浏览…」可以装到任意目录**（比如 D 盘）；安装向导会先探测目标目录是否可写，不可写直接报错让你换位置。装完创建开始菜单和桌面快捷方式。
 3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB）。下载支持断点续传和镜像回退。
 4. 模型就位后自动拉起后端，浏览器打开 `http://127.0.0.1:18080`。
 
