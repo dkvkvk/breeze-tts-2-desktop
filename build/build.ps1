@@ -63,7 +63,7 @@ Start-Sleep -Milliseconds 400
 Push-Location $root
 try {
   Write-Host "[1/5] launcher"
-  & $Csc -nologo -target:winexe -codepage:65001 "-out:$launcherOut" `
+  & $Csc -nologo -target:winexe -codepage:65001 "-out:$launcherOut" "-win32icon:assets\icon.ico" `
     "-resource:src\ui\index.html,ui.index.html" `
     "-resource:src\ui\style.css,ui.style.css" `
     "-resource:src\ui\app.js,ui.app.js" `
@@ -73,7 +73,7 @@ try {
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path $launcherOut)) { throw "launcher build failed" }
 
   Write-Host "[2/5] setup stub"
-  & $Csc -nologo -target:winexe -codepage:65001 "-out:$stubOut" `
+  & $Csc -nologo -target:winexe -codepage:65001 "-out:$stubOut" "-win32icon:assets\icon.ico" `
     -r:System.dll -r:System.Core.dll -r:System.Drawing.dll -r:System.Windows.Forms.dll `
     -r:System.IO.Compression.dll -r:System.IO.Compression.FileSystem.dll src\setup\Program.cs
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path $stubOut)) { throw "setup build failed" }
