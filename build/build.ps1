@@ -6,7 +6,7 @@
   Usage: powershell -ExecutionPolicy Bypass -File build\build.ps1 [-BreezeDir <dir>] [-OutDir <dir>]
 #>
 param(
-  [string]$BreezeDir = "D:\breeze-tts-2",
+  [string]$BreezeDir = "D:\BreezeTTS2",
   [string]$OutDir = ""
 )
 

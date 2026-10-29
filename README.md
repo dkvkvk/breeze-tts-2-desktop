@@ -55,8 +55,10 @@ python build/make-icon.py     # 产出 assets/icon.ico
 需要 Windows 自带的 .NET Framework 4.x（`csc.exe`），不需要 SDK、Node、NSIS 或 Inno Setup。
 
 ```powershell
-# 先把原版后端程序放到 D:\breeze-tts-2（含 breeze-server.exe / libbreeze.dll 等）
-powershell -ExecutionPolicy Bypass -File build\build.ps1 -BreezeDir "D:\breeze-tts-2"
+# 默认从 D:\BreezeTTS2 取后端文件（含 breeze-server.exe / libbreeze.dll 等）
+powershell -ExecutionPolicy Bypass -File build\build.ps1
+# 后端放在别处就指定路径
+powershell -ExecutionPolicy Bypass -File build\build.ps1 -BreezeDir "D:\其他安装目录"
 ```
 
 产物在 `out\BreezeTTS2Setup.exe`。安装包的结构是「PE 外壳 + 追加的 zip + 24 字节尾部索引」：外壳启动后按索引在自身文件里定位 zip 段，用 `SliceStream` 原地解压，不落地临时文件。
