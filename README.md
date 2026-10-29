@@ -1,6 +1,6 @@
 # Breeze TTS 2 桌面版
 
-给 [Breeze TTS 2](https://github.com/HoppouAI/Breeze-TTS-2.cpp) 套一个能双击安装的 Windows 桌面程序：**打开是它自己的窗口**（WebView2 内嵌），不是浏览器标签页；本地推理、纯黑白界面、全程离线。
+给 [Breeze TTS 2](https://github.com/HoppouAI/Breeze-TTS-2.cpp) 做的 Windows 桌面程序：**Electron 外壳**，自带 Chromium 与 Node。双击装完就是它自己的窗口——不依赖系统 WebView2，也不会退回浏览器；后端进程随应用启动、随应用退出。
 
 后端是原版 `breeze-server` 的量化版（Q4_K），本项目**不含模型权重**，首次启动时下载。
 
@@ -10,10 +10,9 @@
 
 原版只有命令行和编译期嵌死的英文 WebUI。这个项目补上三件事：
 
-1. **一个安装包**——`BreezeTTS2Setup.exe`，双击即装，无需管理员权限，不带 2.4 GB 权重。
-   界面用系统自带的 WebView2 运行时渲染（Win10/11 预装），所以不用打包 Chromium，安装包只有 70 MB；万一系统缺 WebView2，会自动回退到浏览器打开。
-2. **一个中文界面**——音色设计 / 音色克隆 / 表演指挥 / 变声转换 / 音色库，五页全中文。
-3. **一个本地启动器**——`BreezeTTS2.exe` 负责拉起后端、代理接口、下载模型、卸载自己。
+1. **一个安装包**——`BreezeTTS2-Setup-*.exe`：可选安装目录、自动创建桌面与开始菜单快捷方式、自带运行时（不用另装 WebView2 或 .NET），不带 2.4 GB 权重。
+2. **一个中文界面**——音色设计 / 音色克隆 / 表演指挥 / 变声转换 / 音色库，五页全中文，另有音色导入和 API 说明面板。
+3. **一个真正的外壳**——托盘图标、原生菜单（文件 / 视图 / 帮助）、单实例（再点一次唤起已有窗口）、后端随应用启停、模型下载断点续传。
 
 ## 图标
 
@@ -87,38 +86,45 @@ POST   /api/audio/convert       变声转换
 
 ## 安装
 
-1. 下载 Releases 里的 `BreezeTTS2Setup.exe`（约 56 MB）。
-2. 双击安装。默认装到 `%LOCALAPPDATA%\Programs\BreezeTTS2`，**点「浏览…」可以装到任意目录**（比如 D 盘）；安装向导会先探测目标目录是否可写，不可写直接报错让你换位置。装完创建开始菜单和桌面快捷方式。
-3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB）。下载支持断点续传和镜像回退。
-4. 模型就位后自动拉起后端，弹出的是 **WebView2 窗口**（不是浏览器标签页）；WebView2 起不来时才会退回默认浏览器。
-5. 想换量化档（比如 Q6_K）：把新 gguf 放进安装目录的 `models\`，**改名为 `breeze-tts-2-q4_k.gguf`** 即可——启动器按文件名找模型，换档前先退出程序。
+1. 从 [Releases](https://github.com/dkvkvk/breeze-tts-2-desktop/releases) 下载 `BreezeTTS2-Setup-2.0.0.exe`。
+2. 双击安装。默认装到 `%LOCALAPPDATA%\Programs\Breeze TTS 2`，**点「浏览…」可以装到任意目录**（比如 D 盘）；装完自动创建**桌面快捷方式**和开始菜单项，卸载项进「设置 → 应用」。
+3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB），断点续传 + 镜像回退，界面上有进度。
+4. 模型就位后自动拉起后端，窗口里五页可用；关窗口 = 退出，后端进程一并结束。最小化到托盘后可右键菜单重新打开。
+5. 想换量化档（比如 Q6_K）：把新 gguf 放进 `%LOCALAPPDATA%\BreezeTTS2\models\`，**改名为 `breeze-tts-2-q4_k.gguf`** 即可——外壳按文件名找模型，换档前先退出程序。
 
 卸载走「设置 → 应用 → Breeze TTS 2」，或运行安装目录下的 `BreezeTTS2.exe --uninstall`。
 
-## 自己打包
+## 构建
 
-需要 Windows 自带的 .NET Framework 4.x（`csc.exe`），不需要 SDK、Node、NSIS 或 Inno Setup。
+**不在本地打包**，全部走 GitHub Actions（`.github/workflows/build.yml`）：push 到 `main` 或手动 `workflow_dispatch` 触发，跑完在 Actions 的 Artifacts 里取 `BreezeTTS2-Setup-*.exe`；打 tag 会自动挂到 Release。
+
+CI 的步骤：下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.cpp` 的 `v0.1.3-windows-x64-vulkan.zip`）→ 解到 `shell/runtime/` → `npm ci` → `electron-builder --win nsis` → 校验产物并打印 sha256。
+
+本地只想调界面（不产安装包）：
 
 ```powershell
-# 默认从 D:\BreezeTTS2 取后端文件（含 breeze-server.exe / libbreeze.dll 等）
-powershell -ExecutionPolicy Bypass -File build\build.ps1
-# 后端放在别处就指定路径
-powershell -ExecutionPolicy Bypass -File build\build.ps1 -BreezeDir "D:\其他安装目录"
+cd shell
+npm install
+npm start        # 先同步 src/ui → shell/ui，再 electron .
+npm run selftest # 不开窗口：跑主进程 + 本地服务 + 后端 + 界面自检
 ```
-
-产物在 `out\BreezeTTS2Setup.exe`。安装包的结构是「PE 外壳 + 追加的 zip + 24 字节尾部索引」：外壳启动后按索引在自身文件里定位 zip 段，用 `SliceStream` 原地解压，不落地临时文件。
 
 ## 目录
 
 ```
-src/launcher/Program.cs   启动器：静态页 + /api 反向代理 + 模型下载 + 卸载
-src/launcher/Window.cs    主窗口：WebView2 承载界面（STA 线程、多路径重试）
-src/setup/Program.cs      安装器：自解压、选目录、写注册表、建快捷方式
-src/ui/                   界面（原生 HTML/CSS/JS，无框架、无构建）
-build/build.ps1           编译 + 打包（自动拉取 WebView2 SDK）
+shell/main.js         Electron 主进程：窗口 / 托盘 / 菜单 / 单实例 / 自检
+shell/backend.js      后端进程管理 + 模型下载（纯 Node，可单独跑）
+shell/server.js       本地 UI 服务 + /api 反代 + /local/* 控制面
+shell/sync-ui.js      把 src/ui 同步进应用（前端只有一份源）
+src/ui/               界面（原生 HTML/CSS/JS，无框架、无构建）
+src/launcher, src/setup, build/    v1.x 的 C# + WebView2 外壳，保留作参考
 ```
 
-启动器是唯一 origin：它把 `/api/*` 反代到后端的 `:18099`，所以**不需要给后端开 `--cors`**，也不会撞上跨域限制。
+外壳是唯一 origin：它把 `/api/*` 反代到后端的 `:18099`，所以**不需要给后端开 `--cors`**，也不会撞上跨域限制。
+
+### 为什么从 WebView2 换成 Electron
+
+v1.x 用 C# + 系统 WebView2：安装包 56 MB，但依赖系统运行时，缺运行时只能退回浏览器打开，用起来像网页。v2 换到 Electron——和 DeepSeek Harness 桌面端同一套方案：自带 Chromium/Node，窗口、托盘、菜单、快捷方式、后端生命周期全在自己手里，代价是安装包大一圈。
 
 ## 实测性能
 

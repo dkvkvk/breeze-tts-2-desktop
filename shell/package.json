@@ -1,0 +1,71 @@
+{
+  "name": "breeze-tts-2-desktop",
+  "productName": "Breeze TTS 2",
+  "version": "2.0.0",
+  "description": "Breeze TTS 2 桌面端：Electron 外壳 + 本地推理后端",
+  "main": "main.js",
+  "author": "dkvkvk",
+  "license": "Apache-2.0",
+  "scripts": {
+    "sync-ui": "node sync-ui.js",
+    "start": "npm run sync-ui && electron .",
+    "selftest": "npm run sync-ui && electron . --selftest",
+    "dist": "npm run sync-ui && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ai.breezeblue.breeze-tts-2",
+    "productName": "Breeze TTS 2",
+    "copyright": "程序代码 Apache-2.0；模型权重仅限研究与非商业用途",
+    "directories": {
+      "output": "../out-electron"
+    },
+    "files": [
+      "main.js",
+      "backend.js",
+      "server.js",
+      "sync-ui.js",
+      "ui/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "BreezeTTS2-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Breeze TTS 2",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "Breeze TTS 2",
+      "installerLanguages": [
+        "zh_CN"
+      ]
+    }
+  }
+}

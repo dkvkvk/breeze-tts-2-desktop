@@ -1,7 +1,14 @@
+# Electron 外壳（当前版本）
+shell/node_modules/
+shell/ui/
+shell/runtime/
+out-electron/
+
+# C# 外壳（v1.x）构建产物
 out/
-.demo/
-.installtest/
-*.log
-*.part
 deps/
 webview/
+.installtest/
+.demo/
+*.log
+*.part

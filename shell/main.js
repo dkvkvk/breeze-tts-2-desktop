@@ -1,0 +1,216 @@
+'use strict';
+/* Breeze TTS 2 桌面端主进程：窗口 / 托盘 / 菜单 / 单实例 / 后端生命周期 */
+const { app, BrowserWindow, Tray, Menu, shell, dialog, nativeImage } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const backend = require('./backend');
+const uiServer = require('./server');
+
+const SELFTEST = process.argv.includes('--selftest');
+const DEV = !app.isPackaged;
+
+let win = null;
+let tray = null;
+let uiPort = 0;
+let paths = null;
+let quitting = false;
+
+function runtimeDir() {
+  if (!DEV) return path.join(process.resourcesPath, 'runtime');
+  return process.env.BREEZE_RUNTIME || 'D:\\BreezeTTS2';
+}
+
+function uiDir() {
+  const packed = path.join(__dirname, 'ui');
+  return fs.existsSync(packed) ? packed : path.join(__dirname, '..', 'src', 'ui');
+}
+
+function iconPath() {
+  const cands = [path.join(__dirname, 'assets', 'icon.ico'), path.join(__dirname, '..', 'assets', 'icon.ico')];
+  return cands.find(p => fs.existsSync(p));
+}
+
+function dataDir() {
+  return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'BreezeTTS2');
+}
+
+/* ---------------- 单实例 ---------------- */
+if (!SELFTEST) {
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) { app.quit(); }
+  app.on('second-instance', () => showWindow());
+}
+
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function buildMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: '文件',
+      submenu: [
+        { label: '打开音色目录', click: () => shell.openPath(paths.voicesDir) },
+        { label: '打开日志目录', click: () => shell.openPath(paths.logsDir) },
+        { type: 'separator' },
+        { label: '退出', accelerator: 'Alt+F4', click: () => { quitting = true; app.quit(); } }
+      ]
+    },
+    {
+      label: '视图',
+      submenu: [
+        { label: '重新加载', accelerator: 'Ctrl+R', click: () => win && win.reload() },
+        { label: '开发者工具', accelerator: 'Ctrl+Shift+I', click: () => win && win.webContents.toggleDevTools() },
+        { type: 'separator' },
+        { role: 'resetZoom', label: '实际大小' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '全屏' }
+      ]
+    },
+    {
+      label: '帮助',
+      submenu: [
+        { label: '接口说明', click: () => { showWindow(); win && win.webContents.executeJavaScript("document.getElementById('api-open').click()"); } },
+        { label: '版本信息', click: () => dialog.showMessageBox(win, {
+            type: 'info', title: 'Breeze TTS 2', message: 'Breeze TTS 2 ' + backend.VERSION,
+            detail: 'Electron ' + process.versions.electron + ' / Chromium ' + process.versions.chrome +
+              '\n模型：' + backend.MODEL_FILE + '\n后端端口：' + (paths ? paths.srvPort : '?') +
+              '　界面端口：' + uiPort + '\n\n权重仅限研究与非商业用途。'
+          }) }
+      ]
+    }
+  ]);
+}
+
+function buildTray() {
+  const icon = iconPath();
+  if (!icon) return;
+  tray = new Tray(nativeImage.createFromPath(icon));
+  tray.setToolTip('Breeze TTS 2');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => showWindow() },
+    { type: 'separator' },
+    { label: '打开音色目录', click: () => shell.openPath(paths.voicesDir) },
+    { label: '打开日志目录', click: () => shell.openPath(paths.logsDir) },
+    { type: 'separator' },
+    { label: '退出', click: () => { quitting = true; app.quit(); } }
+  ]));
+  tray.on('double-click', () => showWindow());
+}
+
+function createWindow(show) {
+  win = new BrowserWindow({
+    width: 1280, height: 880, minWidth: 960, minHeight: 640,
+    show: false, backgroundColor: '#ffffff',
+    title: 'Breeze TTS 2',
+    icon: iconPath(),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, spellcheck: false }
+  });
+  win.once('ready-to-show', () => { if (show) win.show(); });
+  win.on('closed', () => { win = null; });
+  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith('http://127.0.0.1:' + uiPort)) { e.preventDefault(); shell.openExternal(url); }
+  });
+  win.loadURL('http://127.0.0.1:' + uiPort + '/');
+  return win;
+}
+
+async function boot() {
+  paths = backend.init({ runtime: runtimeDir(), dataDir: dataDir(), srvPort: 18099 });
+  backend.log('Breeze TTS 2 ' + backend.VERSION + ' starting, runtime=' + paths.runtime);
+  const bound = await uiServer.start({
+    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend,
+    hooks: {
+      quit: () => { quitting = true; app.quit(); },
+      openVoices: () => shell.openPath(paths.voicesDir),
+      openLogs: () => shell.openPath(paths.logsDir)
+    }
+  });
+  uiPort = bound.port;
+  backend.log('UI listening on ' + uiPort);
+  backend.start();
+}
+
+/* ---------------- 自测：不需要显示器也能跑 ---------------- */
+async function selftest() {
+  const out = [];
+  const check = (name, ok, extra) => out.push((ok ? 'PASS' : 'FAIL') + ' | ' + name + (extra ? ' | ' + extra : ''));
+  try {
+    paths = backend.init({ runtime: runtimeDir(), dataDir: dataDir(), srvPort: 18099 });
+    check('路径解析', !!paths.modelPath, paths.modelPath);
+    check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
+    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, hooks: {} });
+    uiPort = bound.port;
+    check('本地服务启动', uiPort > 0, 'port ' + uiPort);
+
+    const st = await (await fetch('http://127.0.0.1:' + uiPort + '/local/status')).json();
+    check('/local/status 字段完整', ['modelPresent', 'serverReady', 'version', 'serverPort'].every(k => k in st),
+      'version=' + st.version + ' model=' + st.modelPresent);
+
+    const idx = await fetch('http://127.0.0.1:' + uiPort + '/');
+    check('静态页面可达', idx.ok, (await idx.text()).length + ' bytes');
+    const js = await fetch('http://127.0.0.1:' + uiPort + '/audio.js');
+    check('audio.js 可达', js.ok);
+
+    if (backend.modelPresent()) {
+      backend.start();
+      const t0 = Date.now();
+      while (Date.now() - t0 < 180000) {
+        const s = backend.status();
+        if (s.serverReady) break;
+        await new Promise(r => setTimeout(r, 700));
+      }
+      const s2 = backend.status();
+      check('后端就绪', s2.serverReady, 'backend=' + (s2.backend || '?'));
+      if (s2.serverReady) {
+        const v = await (await fetch('http://127.0.0.1:' + uiPort + '/api/voices')).json();
+        check('反代 /api 可用', Array.isArray(v), 'voices=' + v.length);
+      }
+      createWindow(false);
+      const w = win;
+      await new Promise(r => w.webContents.once('did-finish-load', r));
+      let booted = false;
+      for (let i = 0; i < 60; i++) {
+        booted = await w.webContents.executeJavaScript('!!document.getElementById("boot") && document.getElementById("boot").hidden === true');
+        if (booted) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      check('界面完成启动进入主视图', booted === true);
+      const info = await w.webContents.executeJavaScript(
+        'JSON.stringify({api:document.getElementById("api-base").textContent, imp:!!document.getElementById("imp-drop"), count:document.getElementById("libCount").textContent})');
+      const o = JSON.parse(info);
+      check('API 地址已注入', o.api === ('http://127.0.0.1:' + uiPort + '/api'), o.api);
+      check('导入音色区存在', o.imp === true);
+      check('音色列表已渲染', typeof o.count === 'string', 'count=' + o.count);
+      backend.stop();
+    }
+  } catch (e) {
+    check('自测异常', false, (e && e.message) || String(e));
+  }
+  console.log('\n=== SELFTEST ===\n' + out.join('\n'));
+  app.exit(out.some(l => l.startsWith('FAIL')) ? 1 : 0);
+}
+
+if (SELFTEST) {
+  app.whenReady().then(selftest);
+} else {
+  app.whenReady().then(async () => {
+    try {
+      await boot();
+      Menu.setApplicationMenu(buildMenu());
+      buildTray();
+      createWindow(true);
+    } catch (e) {
+      dialog.showErrorBox('Breeze TTS 2 启动失败', (e && e.message) || String(e));
+      app.quit();
+    }
+  });
+  app.on('window-all-closed', () => { if (process.platform !== 'darwin') { quitting = true; app.quit(); } });
+  app.on('before-quit', () => { if (tray) { tray.destroy(); tray = null; } backend.stop(); });
+}
