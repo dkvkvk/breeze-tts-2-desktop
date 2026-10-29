@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Breeze TTS 2</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="boot" class="boot">
+  <div class="boot-mark">BREEZE</div>
+  <div class="boot-line"><span id="bootText">正在检查运行环境</span><span class="dots"></span></div>
+  <div class="boot-bar"><i id="bootBar"></i></div>
+  <div id="bootHint" class="boot-hint"></div>
+</div>
+
+<div id="app" class="app" hidden>
+  <aside class="side">
+    <div class="brand">
+      <span class="brand-mark">BREEZE</span>
+      <span class="brand-sub">TTS 2</span>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-item" data-tab="design"><span class="nav-idx">01</span>音色设计</button>
+      <button class="nav-item" data-tab="clone"><span class="nav-idx">02</span>音色克隆</button>
+      <button class="nav-item" data-tab="direct"><span class="nav-idx">03</span>表演指挥</button>
+      <button class="nav-item" data-tab="convert"><span class="nav-idx">04</span>变声转换</button>
+      <button class="nav-item" data-tab="library"><span class="nav-idx">05</span>音色库</button>
+    </nav>
+    <div class="side-foot">
+      <div class="status" id="status"><i class="dot"></i><span id="statusText">连接中</span></div>
+      <div class="side-meta" id="sideMeta"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <h1 id="pageTitle">音色设计</h1>
+      <p id="pageDesc" class="page-desc">用一段文字描述你想要的声音，模型直接合成。</p>
+    </header>
+
+    <section class="tab" data-panel="design">
+      <label class="field">
+        <span class="label">台词<em>必填</em></span>
+        <textarea id="d-text" rows="4" placeholder="欢迎登机。旅程，从此刻开始。"></textarea>
+      </label>
+      <label class="field">
+        <span class="label">音色描述</span>
+        <textarea id="d-inst" rows="2" placeholder="一位语调温和的年轻女性，吐字清晰，语速从容。"></textarea>
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="d-go">生成语音</button>
+        <button class="btn btn-ghost" id="d-stop" disabled>停止</button>
+      </div>
+      <div class="out" id="d-out"></div>
+    </section>
+
+    <section class="tab" data-panel="clone" hidden>
+      <div class="field">
+        <span class="label">参考来源</span>
+        <div class="seg" id="c-src">
+          <button class="seg-item is-on" data-mode="library">音色库</button>
+          <button class="seg-item" data-mode="upload">上传录音</button>
+        </div>
+      </div>
+      <div class="field" id="c-library">
+        <span class="label">选择音色</span>
+        <select id="c-voice"></select>
+      </div>
+      <div id="c-upload" hidden>
+        <label class="field">
+          <span class="label">参考音频<em>WAV</em></span>
+          <input type="file" id="c-file" accept=".wav,audio/wav,audio/x-wav">
+        </label>
+        <label class="field">
+          <span class="label">参考音频的逐字稿<em>必须完全一致</em></span>
+          <textarea id="c-reftext" rows="2" placeholder="录音里说的每一个字，原样写在这里。"></textarea>
+        </label>
+        <div class="grid2">
+          <label class="field">
+            <span class="label">保存为</span>
+            <input type="text" id="c-name" placeholder="my_voice">
+          </label>
+          <label class="field">
+            <span class="label">音色描述</span>
+            <input type="text" id="c-desc" placeholder="低沉年长的旁白，语速慢而温暖。">
+          </label>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="c-save">保存音色</button>
+        </div>
+      </div>
+      <label class="field">
+        <span class="label">台词<em>必填</em></span>
+        <textarea id="c-text" rows="4" placeholder="好久没有听到你的声音了。"></textarea>
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="c-go">生成语音</button>
+        <button class="btn btn-ghost" id="c-stop" disabled>停止</button>
+      </div>
+      <div class="out" id="c-out"></div>
+    </section>
+
+    <section class="tab" data-panel="direct" hidden>
+      <label class="field">
+        <span class="label">台词<em>必填</em></span>
+        <textarea id="r-text" rows="4" placeholder="我需要和你谈谈昨晚发生的事。"></textarea>
+      </label>
+      <label class="field">
+        <span class="label">表演指令<em>越具体越准</em></span>
+        <textarea id="r-inst" rows="4" placeholder="压低声音，语气克制而严肃，句子之间停顿稍长。"></textarea>
+      </label>
+      <div class="chips" id="r-chips">
+        <button class="chip">克制而严肃，语速偏慢</button>
+        <button class="chip">兴奋，语速加快，尾音上扬</button>
+        <button class="chip">疲惫的成年男性，气声多</button>
+        <button class="chip">新闻播报，字正腔圆</button>
+      </div>
+      <label class="field">
+        <span class="label">参考音色<em>可选</em></span>
+        <select id="r-voice"><option value="">不使用（仅靠指令）</option></select>
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="r-go">生成语音</button>
+        <button class="btn btn-ghost" id="r-stop" disabled>停止</button>
+      </div>
+      <div class="out" id="r-out"></div>
+    </section>
+
+    <section class="tab" data-panel="convert" hidden>
+      <label class="field">
+        <span class="label">源录音<em>必填 WAV</em></span>
+        <input type="file" id="v-file" accept=".wav,audio/wav,audio/x-wav">
+      </label>
+      <label class="field">
+        <span class="label">目标音色</span>
+        <select id="v-voice"></select>
+      </label>
+      <label class="field">
+        <span class="label">源录音逐字稿<em>可选，填了更准</em></span>
+        <textarea id="v-text" rows="2" placeholder="留空则自动生成一段等长填充文本。"></textarea>
+      </label>
+      <details class="adv">
+        <summary>高级参数</summary>
+        <div class="grid3">
+          <label class="field"><span class="label">保留原声细节</span><input type="number" id="v-keep" value="0" min="0" max="15"></label>
+          <label class="field"><span class="label">温度</span><input type="number" id="v-temp" value="0.3" step="0.1" min="0" max="2"></label>
+          <label class="field"><span class="label">随机种子</span><input type="number" id="v-seed" value="42"></label>
+        </div>
+      </details>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="v-go">开始变声</button>
+        <button class="btn btn-ghost" id="v-stop" disabled>停止</button>
+      </div>
+      <div class="out" id="v-out"></div>
+    </section>
+
+    <section class="tab" data-panel="library" hidden>
+      <div class="lib-head">
+        <span class="label">已保存 <em id="libCount">0</em></span>
+        <button class="btn btn-sm" id="lib-refresh">刷新</button>
+      </div>
+      <div id="libList" class="lib-list"></div>
+      <div class="hint-box">
+        删除只从内存与列表移除，磁盘上的 <code>.breeze</code> 文件会保留，重启后回来。
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

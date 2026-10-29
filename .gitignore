@@ -1,0 +1,5 @@
+out/
+.demo/
+.installtest/
+*.log
+*.part
