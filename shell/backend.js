@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const VERSION = '2.0.2';
+const VERSION = '2.0.3';
 const MODEL_FILE = 'breeze-tts-2-q4_k.gguf';
 const MODEL_URLS = [
   'https://huggingface.co/HoppouAI/Breeze-TTS-2.cpp/resolve/main/' + MODEL_FILE,
