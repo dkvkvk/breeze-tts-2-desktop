@@ -39,7 +39,10 @@
         <h1 id="pageTitle">音色设计</h1>
         <p id="pageDesc" class="page-desc">用一段文字描述你想要的声音，模型直接合成。</p>
       </div>
-      <button class="btn btn-sm api-open" id="api-open" title="接口说明与调用地址">API</button>
+      <div class="top-actions">
+        <button class="btn btn-sm" id="model-open" title="切换或下载模型">模型</button>
+        <button class="btn btn-sm api-open" id="api-open" title="接口说明与调用地址">API</button>
+      </div>
     </header>
 
     <section class="tab" data-panel="design">
@@ -220,6 +223,38 @@
         <div class="api-copy-row">
           <button class="btn btn-sm" id="api-copy-all" type="button">复制地址 + 示例</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="model-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <span class="modal-title">模型</span>
+      <button class="btn btn-sm" id="model-close" type="button">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="api-block">
+        <div class="api-label">当前使用</div>
+        <div class="md-active" id="model-active">—</div>
+        <div class="api-hint" id="model-dir"></div>
+      </div>
+      <div class="api-block">
+        <div class="api-label">本地已有 <em id="model-count">0</em></div>
+        <div id="model-list" class="md-list"></div>
+        <div class="api-hint">切换会重启推理服务，约 3–10 秒；只列出 .gguf 文件。</div>
+      </div>
+      <div class="api-block">
+        <div class="api-label">下载其它量化档</div>
+        <div id="model-catalog" class="md-catalog"></div>
+      </div>
+      <div class="api-block" id="model-dl" hidden>
+        <div class="api-label">下载中</div>
+        <div class="md-dl-head"><span id="model-dl-name"></span><span id="model-dl-mirror"></span></div>
+        <div class="md-bar"><i id="model-dl-bar"></i></div>
+        <div class="md-dl-foot"><span id="model-dl-stat"></span><button class="btn btn-sm" id="model-dl-stop" type="button">取消</button></div>
+        <div class="api-hint">速度过慢会自动换源（HuggingFace → hf-mirror → hf-mirror.net），已下载部分会续传。</div>
       </div>
     </div>
   </div>

@@ -1,0 +1,1 @@
+D:\Breeze TTS 2\models\breeze-tts-2-q6_k.gguf

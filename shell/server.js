@@ -89,7 +89,22 @@ function start(opts) {
     try {
       if (p.startsWith('/api/')) return proxy(req, res, url, srvPort);
       if (p === '/local/status') return json(res, backend.status());
-      if (p === '/local/download' && req.method === 'POST') { backend.startDownload(); return json(res, { ok: true }); }
+      if (p === '/local/models') return json(res, {
+        models: backend.listModels(),
+        catalog: backend.CATALOG,
+        mirrors: backend.MIRRORS.map(m => m.name),
+        active: backend.getPaths().modelPath,
+        modelsDir: backend.getPaths().modelsDir
+      });
+      if (p === '/local/model-use' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        return json(res, backend.useModel(body.path || body.file));
+      }
+      if (p === '/local/download' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        return json(res, backend.startDownload(body.id || body.file));
+      }
+      if (p === '/local/download-stop' && req.method === 'POST') return json(res, backend.stopDownload());
       if (p === '/local/quit' && req.method === 'POST') { json(res, { ok: true }); setTimeout(() => hooks && hooks.quit && hooks.quit(), 200); return; }
       if (p === '/local/pick-model' && req.method === 'POST') {
         const ok = hooks && hooks.pickModel ? await hooks.pickModel() : false;

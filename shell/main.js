@@ -17,7 +17,7 @@ let quitting = false;
 
 function runtimeDir() {
   if (!DEV) return path.join(process.resourcesPath, 'runtime');
-  return process.env.BREEZE_RUNTIME || 'D:\\BreezeTTS2';
+  return process.env.BREEZE_RUNTIME || 'D:\\Breeze TTS 2\\resources\\runtime';
 }
 
 function uiDir() {
@@ -210,6 +210,15 @@ async function selftest() {
     check('/local/status 字段完整', ['modelPresent', 'serverReady', 'version', 'serverPort'].every(k => k in st),
       'version=' + st.version + ' model=' + st.modelPresent);
 
+    const md = await (await fetch('http://127.0.0.1:' + uiPort + '/local/models')).json();
+    check('模型列表接口', Array.isArray(md.models) && md.models.length > 0, 'models=' + md.models.length + ' active=' + String(md.active || '').split(/[\\/]/).pop());
+    check('下载档位目录', Array.isArray(md.catalog) && md.catalog.length === 7, 'catalog=' + (md.catalog || []).length);
+    check('下载源列表', Array.isArray(md.mirrors) && md.mirrors.length >= 2, (md.mirrors || []).join('/'));
+    const bad = await (await fetch('http://127.0.0.1:' + uiPort + '/local/model-use', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: 'no-such.gguf' })
+    })).json();
+    check('切换不存在文件被拒绝', bad.ok === false, bad.error || '');
+
     const idx = await fetch('http://127.0.0.1:' + uiPort + '/');
     check('静态页面可达', idx.ok, (await idx.text()).length + ' bytes');
     const js = await fetch('http://127.0.0.1:' + uiPort + '/audio.js');
@@ -245,6 +254,16 @@ async function selftest() {
       check('API 地址已注入', o.api === ('http://127.0.0.1:' + uiPort + '/api'), o.api);
       check('导入音色区存在', o.imp === true);
       check('音色列表已渲染', typeof o.count === 'string', 'count=' + o.count);
+      const mjson = await w.webContents.executeJavaScript(
+        '(function(){var mo=document.getElementById("model-modal");if(mo.hidden)document.getElementById("model-open").click();' +
+        'return new Promise(function(res){var n=0,t=setInterval(function(){' +
+        'var l=document.querySelectorAll("#model-list .md-row").length;' +
+        'var c=document.querySelectorAll("#model-catalog .md-row").length;' +
+        'if((l>0&&c>0)||++n>25){clearInterval(t);' +
+        'res(JSON.stringify({list:l,catalog:c,active:document.getElementById("model-active").textContent}));}},200);});})()');
+      const mo = JSON.parse(mjson);
+      check('模型弹窗列出本地模型', mo.list > 0, 'rows=' + mo.list + ' active=' + mo.active);
+      check('模型弹窗列出下载档位', mo.catalog === 7, 'catalog=' + mo.catalog);
       backend.stop();
     }
   } catch (e) {

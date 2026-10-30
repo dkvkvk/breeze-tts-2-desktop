@@ -483,6 +483,7 @@ function boot() {
     var h = (location.hash || '').replace('#', '');
     switchTab(PAGES[h] ? h : 'design');
     if (h === 'api') $('api-open').click();
+    if (h === 'model') $('model-open').click();
   }).catch(function (e) {
     $('bootText').textContent = '无法连接本地服务';
     $('bootHint').textContent = String(e.message || e);
@@ -495,6 +496,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
 });
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
 bindDesign(); bindClone(); bindDirect(); bindConvert();
+bindModel();
 boot();
 
 /* ---------------- 导入音色 ---------------- */
@@ -736,4 +738,152 @@ function bindApi() {
 
 bindImport();
 bindApi();
+
+
+/* ---------------- 模型：切换与下载 ---------------- */
+var mdTimer = null;
+
+function mdGb(bytes) { return (bytes / 1073741824).toFixed(2) + ' GB'; }
+
+function mdRender(data) {
+  var active = data.active || '';
+  $('model-active').textContent = active ? active.split(/[\\/]/).pop() : '（未选择）';
+  $('model-dir').textContent = '模型目录：' + (data.modelsDir || '') + '　·　放进去的 .gguf 会自动出现在下面';
+
+  var list = $('model-list');
+  list.innerHTML = '';
+  $('model-count').textContent = String((data.models || []).length);
+  if (!(data.models || []).length) {
+    var e = document.createElement('div');
+    e.className = 'md-empty';
+    e.textContent = '这个目录里还没有 .gguf 文件';
+    list.appendChild(e);
+  }
+  (data.models || []).forEach(function (m) {
+    var row = document.createElement('div');
+    row.className = 'md-row' + (m.active ? ' is-on' : '');
+    var main = document.createElement('div');
+    main.className = 'md-row-main';
+    var nm = document.createElement('div');
+    nm.className = 'md-row-name';
+    nm.textContent = m.file;
+    var meta = document.createElement('div');
+    meta.className = 'md-row-meta';
+    meta.textContent = m.label + '　·　' + mdGb(m.bytes) + (m.known ? '' : '　·　本地文件');
+    main.appendChild(nm); main.appendChild(meta);
+    row.appendChild(main);
+    var b = document.createElement('button');
+    b.className = 'btn btn-sm' + (m.active ? ' is-disabled' : '');
+    b.textContent = m.active ? '使用中' : '切换';
+    if (!m.active) {
+      b.onclick = function () {
+        b.disabled = true; b.textContent = '切换中…';
+        fetch('/local/model-use', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: m.path })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          if (!res.ok) { toast('切换失败：' + (res.error || '未知错误')); b.disabled = false; b.textContent = '切换'; return; }
+          toast('已切换到 ' + m.file + '，服务重启中');
+          $('bootText').textContent = '正在加载 ' + m.file;
+          setTimeout(mdRefresh, 800);
+          setTimeout(mdRefresh, 3000);
+        }).catch(function (e) { toast('切换失败：' + e.message); b.disabled = false; b.textContent = '切换'; });
+      };
+    }
+    row.appendChild(b);
+    list.appendChild(row);
+  });
+
+  var cat = $('model-catalog');
+  cat.innerHTML = '';
+  (data.catalog || []).forEach(function (c) {
+    var have = (data.models || []).some(function (m) { return m.file === c.file; });
+    var row = document.createElement('div');
+    row.className = 'md-row';
+    var main = document.createElement('div');
+    main.className = 'md-row-main';
+    var nm = document.createElement('div');
+    nm.className = 'md-row-name';
+    nm.textContent = c.label;
+    var meta = document.createElement('div');
+    meta.className = 'md-row-meta';
+    meta.textContent = mdGb(c.size) + '　·　' + c.note;
+    main.appendChild(nm); main.appendChild(meta);
+    row.appendChild(main);
+    var b = document.createElement('button');
+    b.className = 'btn btn-sm' + (have ? ' is-disabled' : '');
+    b.textContent = have ? '已下载' : '下载';
+    if (!have) {
+      b.onclick = function () {
+        b.disabled = true; b.textContent = '开始…';
+        fetch('/local/download', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: c.id })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          if (!res.ok) { toast(res.error || '无法开始下载'); b.disabled = false; b.textContent = '下载'; return; }
+          toast('开始下载 ' + c.label);
+          mdPoll();
+        });
+      };
+    }
+    row.appendChild(b);
+    cat.appendChild(row);
+  });
+
+  mdProgress(data.download || {});
+}
+
+function mdProgress(d) {
+  var box = $('model-dl');
+  if (!d.running && !d.error) { box.hidden = true; return; }
+  box.hidden = false;
+  $('model-dl-name').textContent = d.file || '';
+  $('model-dl-mirror').textContent = d.mirror ? ('源：' + d.mirror + (d.fallbacks ? '（已切换 ' + d.fallbacks + ' 次）' : '')) : '';
+  var pct = d.total ? Math.min(100, d.bytes / d.total * 100) : 0;
+  $('model-dl-bar').style.width = pct.toFixed(1) + '%';
+  $('model-dl-stat').textContent = d.error ? ('失败：' + d.error)
+    : (mdGb(d.bytes) + ' / ' + mdGb(d.total) + '　' + pct.toFixed(1) + '%　' + (d.speed ? d.speed.toFixed(1) + ' MB/s' : ''));
+  $('model-dl-stop').hidden = !d.running;
+}
+
+function mdRefresh() {
+  return fetch('/local/models').then(function (r) { return r.json(); }).then(mdRender).catch(function () { });
+}
+
+function mdPoll() {
+  if (mdTimer) clearInterval(mdTimer);
+  mdTimer = setInterval(function () {
+    fetch('/local/status').then(function (r) { return r.json(); }).then(function (s) {
+      mdProgress(s.download || {});
+      if (!(s.download || {}).running) {
+        clearInterval(mdTimer); mdTimer = null;
+        mdRefresh();
+        if (s.download && s.download.error) toast('下载失败：' + s.download.error);
+        else if (s.download && s.download.file) toast('下载完成，已切换');
+      }
+    }).catch(function () { });
+  }, 1000);
+}
+
+function bindModel() {
+  $('model-open').onclick = function () {
+    $('model-modal').hidden = false;
+    mdRefresh().then(function () {
+      fetch('/local/status').then(function (r) { return r.json(); }).then(function (s) {
+        if ((s.download || {}).running) mdPoll();
+      });
+    });
+  };
+  $('model-close').onclick = function () {
+    $('model-modal').hidden = true;
+    if (mdTimer) { clearInterval(mdTimer); mdTimer = null; }
+  };
+  $('model-dl-stop').onclick = function () {
+    fetch('/local/download-stop', { method: 'POST' }).then(function () { toast('已取消下载'); mdRefresh(); });
+  };
+  $('model-modal').onclick = function (e) { if (e.target === $('model-modal')) $('model-close').click(); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('model-modal').hidden) $('model-close').click();
+  });
+}
 
