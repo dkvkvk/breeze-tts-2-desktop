@@ -1,4 +1,4 @@
-; Breeze TTS 2 安装器定制
+﻿; Breeze TTS 2 安装器定制
 ; 1) 默认目录 D:\BreezeTTS2（无空格）
 ; 2) 安装子目录名统一为 BreezeTTS2，不带空格
 ; 3) 用户只选到盘符（D: 或 D:\）时，目录页当场补成 D:\BreezeTTS2 并写回输入框

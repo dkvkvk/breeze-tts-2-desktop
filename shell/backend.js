@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const VERSION = '2.1.1';
+const VERSION = '2.2.0';
 const DEFAULT_FILE = 'breeze-tts-2-q4_k.gguf';
 
 /* 官方 HoppouAI/Breeze-TTS-2.cpp 的 7 个量化档，字节数取自 HF 文件树 */

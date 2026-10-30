@@ -1,7 +1,7 @@
 {
   "name": "breeze-tts-2-desktop",
   "productName": "Breeze TTS 2",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "description": "Breeze TTS 2 桌面端：Electron 外壳 + 本地推理后端",
   "main": "main.js",
   "author": "dkvkvk",
@@ -66,7 +66,12 @@
       "include": "build/installer.nsh",
       "installerLanguages": [
         "zh_CN"
-      ]
+      ],
+      "installerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerHeaderIcon": "build/installerHeaderIcon.ico",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     }
   }
 }
