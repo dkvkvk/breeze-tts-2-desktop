@@ -12,3 +12,8 @@ webview/
 .demo/
 *.log
 *.part
+
+# 临时脚本
+.ico*.py
+.mk*.py
+.nsis*
