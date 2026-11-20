@@ -25,7 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: shell/package-lock.json
 
@@ -46,9 +46,40 @@ jobs:
         working-directory: shell
         run: npm ci
 
+      - name: Test long-form synthesis and exports
+        working-directory: shell
+        run: npm test
+
       - name: Build NSIS installer
         working-directory: shell
         run: npm run dist
+
+      - name: Check installed app on first run
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem out-electron/BreezeTTS2-Setup-*.exe | Select-Object -First 1
+          if (-not $installer) { throw 'installer not produced' }
+          # The custom NSIS init sets this default even in silent mode.
+          $installDir = 'D:\BreezeTTS2'
+          $setup = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -PassThru
+          if (-not $setup.WaitForExit(120000)) {
+            Stop-Process -InputObject $setup -Force
+            throw 'silent installation timed out'
+          }
+          if ($setup.ExitCode -ne 0) { throw "installer exited with code $($setup.ExitCode)" }
+          $app = Join-Path $installDir 'Breeze TTS 2.exe'
+          $backend = Join-Path $installDir 'resources/runtime/breeze-server.exe'
+          if (-not (Test-Path -LiteralPath $app) -or -not (Test-Path -LiteralPath $backend)) {
+            throw 'installed app or backend runtime missing'
+          }
+          $report = Join-Path $env:RUNNER_TEMP 'breeze-selftest.txt'
+          $smoke = Start-Process -FilePath $app -ArgumentList '--selftest-offline' -RedirectStandardOutput $report -PassThru
+          if (-not $smoke.WaitForExit(30000)) {
+            Stop-Process -InputObject $smoke -Force
+            throw 'first-run self-test timed out'
+          }
+          Get-Content -LiteralPath $report
+          if ($smoke.ExitCode -ne 0) { throw "first-run self-test exited with code $($smoke.ExitCode)" }
 
       - name: Verify artifact
         shell: pwsh
