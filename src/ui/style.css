@@ -98,6 +98,12 @@ input[type=file]:hover{border-color:var(--fg);color:var(--fg)}
 .btn-ghost{border-color:var(--line-strong);color:var(--muted)}
 .btn-ghost:hover:not(:disabled){color:var(--fg);border-color:var(--fg);background:#fff}
 
+.design-presets{margin-bottom:24px;padding:14px 16px;border:1px solid var(--line)}
+.preset-row{display:flex;gap:8px;margin:0}
+.preset-row+.preset-row{margin-top:8px}
+.preset-row select,.preset-row input{min-width:0}
+.preset-row .btn{flex:none}
+
 .seg{display:inline-flex;border:1px solid var(--line)}
 .seg-item{background:#fff;border:0;padding:8px 18px;cursor:pointer;color:var(--muted);font-size:13px}
 .seg-item+.seg-item{border-left:1px solid var(--line)}

@@ -330,8 +330,78 @@ function ui(p) {
   return { go: $(p + '-go'), stop: $(p + '-stop'), out: $(p + '-out') };
 }
 
+function bindDesignPresets() {
+  var endpoint = '/local/design-presets';
+  var list = $('d-preset-list');
+  var name = $('d-preset-name');
+  var apply = $('d-preset-apply');
+  var remove = $('d-preset-delete');
+  var save = $('d-preset-save');
+  var presets = [];
+  var busy = false;
+
+  function updateButtons() {
+    list.disabled = busy || presets.length === 0;
+    apply.disabled = remove.disabled = busy || !list.value;
+    save.disabled = busy;
+  }
+
+  async function request(url, options, selected) {
+    busy = true;
+    updateButtons();
+    try {
+      var response = await fetch(url, options);
+      var data = await response.json();
+      if (!response.ok) throw new Error(data.error || '预设操作失败');
+      presets = data;
+      list.replaceChildren(new Option(presets.length ? '选择已保存的预设' : '暂无已保存预设', ''));
+      presets.forEach(function (preset) { list.add(new Option(preset.name, preset.name)); });
+      list.value = selected || '';
+      return true;
+    } catch (e) {
+      toast('预设操作失败：' + e.message);
+      return false;
+    } finally {
+      busy = false;
+      updateButtons();
+    }
+  }
+
+  list.onchange = updateButtons;
+  apply.onclick = function () {
+    var preset = presets.find(function (item) { return item.name === list.value; });
+    if (!preset) return;
+    $('d-inst').value = preset.instruction;
+    toast('已套用「' + preset.name + '」');
+  };
+  remove.onclick = async function () {
+    var selected = list.value;
+    if (!selected || !confirm('删除预设「' + selected + '」？')) return;
+    if (await request(endpoint + '?name=' + encodeURIComponent(selected), { method: 'DELETE' })) {
+      toast('已删除预设「' + selected + '」');
+    }
+  };
+  $('d-preset-form').onsubmit = async function (event) {
+    event.preventDefault();
+    if (busy) return;
+    var presetName = name.value.trim();
+    var instruction = $('d-inst').value.trim();
+    if (!presetName || !instruction) { toast('请填写预设名称和音色描述'); return; }
+    if (await request(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: presetName, instruction: instruction })
+    }, presetName)) {
+      if (name.value.trim() === presetName) name.value = '';
+      toast('已保存预设「' + presetName + '」');
+    }
+  };
+  request(endpoint);
+}
+
 function bindDesign() {
   var u = ui('d');
+  bindDesignPresets();
   u.stop.onclick = stopStream;
   u.go.onclick = function () {
     var text = $('d-text').value.trim();

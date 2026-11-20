@@ -54,6 +54,18 @@
         <span class="label">音色描述</span>
         <textarea id="d-inst" rows="2" placeholder="一位语调温和的年轻女性，吐字清晰，语速从容。"></textarea>
       </label>
+      <div class="design-presets">
+        <label class="label" for="d-preset-list">本地预设</label>
+        <div class="preset-row">
+          <select id="d-preset-list" disabled><option value="">暂无已保存预设</option></select>
+          <button class="btn btn-sm" id="d-preset-apply" disabled>套用</button>
+          <button class="btn btn-sm btn-ghost" id="d-preset-delete" disabled>删除</button>
+        </div>
+        <form class="preset-row" id="d-preset-form">
+          <input id="d-preset-name" type="text" aria-label="新预设名称" maxlength="60" required placeholder="为当前音色描述命名">
+          <button class="btn btn-sm" id="d-preset-save" type="submit" disabled>保存预设</button>
+        </form>
+      </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="d-go">生成语音</button>
         <button class="btn btn-ghost" id="d-stop" disabled>停止</button>

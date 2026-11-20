@@ -3,6 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -28,6 +29,30 @@ function readBody(req) {
     req.on('end', () => ok(Buffer.concat(chunks)));
     req.on('error', bad);
   });
+}
+
+function readDesignPresets(file) {
+  try {
+    const presets = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!Array.isArray(presets) || !presets.every(preset =>
+      preset && typeof preset.name === 'string' && typeof preset.instruction === 'string')) {
+      throw new Error('预设文件格式无效');
+    }
+    return presets;
+  } catch (e) {
+    if (e.code === 'ENOENT') return [];
+    throw e;
+  }
+}
+
+function writeDesignPresets(file, presets) {
+  const temp = file + '.' + randomUUID() + '.tmp';
+  try {
+    fs.writeFileSync(temp, JSON.stringify(presets, null, 2) + '\n', 'utf8');
+    fs.renameSync(temp, file);
+  } finally {
+    fs.rmSync(temp, { force: true });
+  }
 }
 
 /* /api/xxx -> 后端 /v1/xxx 的显式映射（其余按 /api/ -> /v1/ 替换） */
@@ -89,6 +114,41 @@ function start(opts) {
     try {
       if (p.startsWith('/api/')) return proxy(req, res, url, srvPort);
       if (p === '/local/status') return json(res, backend.status());
+      if (p === '/local/design-presets') {
+        const file = path.join(backend.getPaths().dataRoot, 'design-presets.json');
+        if (req.method === 'GET') return json(res, readDesignPresets(file));
+        if (req.method === 'POST') {
+          if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) {
+            return json(res, { error: '预设必须使用 JSON 格式' }, 415);
+          }
+          const raw = await readBody(req);
+          let body;
+          try { body = JSON.parse(raw); }
+          catch (e) { return json(res, { error: '预设格式无效' }, 400); }
+          const name = typeof body?.name === 'string' ? body.name.trim() : '';
+          const instruction = typeof body?.instruction === 'string' ? body.instruction.trim() : '';
+          if (!name || name.length > 60) return json(res, { error: '请输入 1–60 字的预设名称' }, 400);
+          if (!instruction || instruction.length > 8192) {
+            return json(res, { error: '请输入 1–8192 字的音色描述' }, 400);
+          }
+          const presets = readDesignPresets(file);
+          if (presets.some(preset => preset.name === name)) {
+            return json(res, { error: '已有同名预设，请换一个名称' }, 409);
+          }
+          presets.push({ name, instruction });
+          writeDesignPresets(file, presets);
+          return json(res, presets, 201);
+        }
+        if (req.method === 'DELETE') {
+          const name = url.searchParams.get('name');
+          const presets = readDesignPresets(file);
+          const remaining = presets.filter(preset => preset.name !== name);
+          if (remaining.length === presets.length) return json(res, { error: '找不到该预设' }, 404);
+          writeDesignPresets(file, remaining);
+          return json(res, remaining);
+        }
+        return json(res, { error: '不支持的请求方法' }, 405);
+      }
       if (p === '/local/models') return json(res, {
         models: backend.listModels(),
         catalog: backend.CATALOG,
