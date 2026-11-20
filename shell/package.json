@@ -10,11 +10,12 @@
     "sync-ui": "node sync-ui.js",
     "start": "npm run sync-ui && electron .",
     "selftest": "npm run sync-ui && electron . --selftest",
+    "selftest:offline": "npm run sync-ui && electron . --selftest-offline",
     "dist": "npm run sync-ui && electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^38.2.0",
-    "electron-builder": "^26.0.12"
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.1"
   },
   "build": {
     "appId": "ai.breezeblue.breeze-tts-2",

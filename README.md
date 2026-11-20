@@ -133,7 +133,7 @@ POST   /api/audio/convert       变声转换
 
 **不在本地打包**，全部走 GitHub Actions（`.github/workflows/build.yml`）：push 到 `main` 或手动 `workflow_dispatch` 触发，跑完在 Actions 的 Artifacts 里取 `BreezeTTS2-Setup-*.exe`；打 tag 会自动挂到 Release。
 
-CI 的步骤：下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.cpp` 的 `v0.1.3-windows-x64-vulkan.zip`）→ 解到 `shell/runtime/` → `npm ci` → `electron-builder --win nsis` → 校验产物并打印 sha256。
+CI 使用 Node.js 24。下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.cpp` 的 `v0.1.3-windows-x64-vulkan.zip`）并解到 `shell/runtime/`，然后运行 `npm ci` 和 `electron-builder --win nsis`。安装包会在临时 Windows 环境静默安装并执行无模型首启自检，最后打印产物的 SHA-256。
 
 本地只想调界面（不产安装包）：
 
@@ -141,7 +141,14 @@ CI 的步骤：下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.
 cd shell
 npm install
 npm start        # 先同步 src/ui → shell/ui，再 electron .
-npm run selftest # 不开窗口：跑主进程 + 本地服务 + 后端 + 界面自检
+npm run selftest # 需要本地模型和后端运行时，检查后端与界面
+```
+
+要在 Windows 上检查无模型时的首启界面，请在 `shell` 目录下用独立数据目录运行。运行前确保当前终端未设置 `BREEZE_MODEL`，且 `BREEZE_RUNTIME` 指向的运行时目录中没有模型。
+
+```powershell
+$env:BREEZE_DATA = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+npm run selftest:offline
 ```
 
 ## 目录
