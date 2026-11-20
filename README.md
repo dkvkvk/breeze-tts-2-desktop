@@ -11,7 +11,7 @@
 原版只有命令行和编译期嵌死的英文 WebUI。这个项目补上三件事：
 
 1. **一个安装包**——`BreezeTTS2-Setup-*.exe`：可选安装目录、自动创建桌面与开始菜单快捷方式、自带运行时（不用另装 WebView2 或 .NET），不带 2.4 GB 权重。
-2. **一个中文界面**——音色设计 / 音色克隆 / 表演指挥 / 变声转换 / 音色库，五页全中文，另有音色导入和 API 说明面板。
+2. **一个中文界面**——音色设计 / 音色克隆 / 表演指挥 / 变声转换 / 音色库 / 长文配音，另有音色导入和 API 说明面板。
 3. **一个真正的外壳**——托盘图标、原生菜单（文件 / 视图 / 帮助）、单实例（再点一次唤起已有窗口）、后端随应用启停、模型下载断点续传。
 
 ## 图标
@@ -28,7 +28,7 @@ python build/make-icon.py     # 产出 assets/icon.ico
 
 ## 界面
 
-黑白两色，等宽字体做标注，没有渐变、阴影和圆角。五个功能页面对应后端的三组能力：
+黑白两色，等宽字体做标注，没有渐变、阴影和圆角。各页面使用以下接口：
 
 | 页面 | 接口 | 说明 |
 | --- | --- | --- |
@@ -37,8 +37,24 @@ python build/make-icon.py     # 产出 assets/icon.ico
 | 表演指挥 | `POST /v1/audio/speech` | 文本与描述分离，边改边听 |
 | 变声转换 | `POST /v1/audio/convert` | 保留内容，换音色 |
 | 音色库 | `GET/DELETE /v1/voices` | 管理已注册音色 |
+| 长文配音 | `POST /v1/audio/speech` | 分段配音，试听并导出 WAV 和 SRT |
 
 音频是**流式**的：后端以 `audio/pcm` 分块返回（24 kHz / s16le / 单声道），前端边收边播，第一块到了就开始出声，不等整段生成完。
+
+## 音色设计预设
+
+在「音色设计」里填好音色描述，在「本地预设」区输入名称并点「保存预设」。应用重启后，仍可从下拉框选择该预设，点「套用」填入音色描述，或点「删除」移除它。预设仅在主动保存时写入本机。同名预设会提示换名，台词、参考音频和生成结果都不会写入预设。
+
+## 长文配音
+
+1. 打开「长文配音」，粘贴脚本或导入 UTF-8 TXT。换行时分段，过长的段落会优先按附近的标点或空格继续拆分。页面会显示预计段数。
+2. 选择音色库里的参考音色、输入音色描述，或从「音色设计」套用当前描述。可设置段间停顿，默认 0.5 秒。
+3. 开始生成后，可以按段试听，也可以试听当前已完成的整篇。中途停止或遇到错误时，已生成的完整片段仍可导出。保留原脚本和参数，点「继续生成」即可从下一段接着生成。
+4. 「导出 WAV」将已完成片段合并成 24 kHz 单声道音频。「导出 SRT」生成同名字幕，时间轴按实际音频时长和段间停顿计算，可与 WAV 一起导入剪辑软件。
+
+点「保存配音草稿」可导出包含脚本、音色描述、音色标识和段间停顿的 JSON，下次可重新导入。若本机缺少草稿中的音色，重新从音色库选择即可。草稿不含音频，退出前请另行导出 WAV 和 SRT。
+
+单次最多处理 12,000 字、200 段，最多保留 20 分钟已生成音频。
 
 ## 导入音色
 
@@ -89,7 +105,7 @@ POST   /api/audio/convert       变声转换
 1. 从 [Releases](https://github.com/dkvkvk/breeze-tts-2-desktop/releases) 下载 `BreezeTTS2-Setup-*.exe`（约 131 MB，自带运行时）。
 2. 双击安装。**安装目录默认 `D:\Breeze TTS 2`，目录页的输入框可以直接键入或粘贴任意路径**（不必点「浏览」）；只选到盘符（如 `D:\`）时会**立刻自动补成 `D:\Breeze TTS 2`**，选到别的文件夹（如 `D:\apps`）则在开始安装时补成 `D:\apps\Breeze TTS 2`。装完自动创建**桌面快捷方式**和开始菜单项，卸载项进「设置 → 应用」。
 3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB），断点续传 + 镜像回退，界面上有进度。
-4. 模型就位后自动拉起后端，窗口里五页可用；关窗口 = 退出，后端进程一并结束。最小化到托盘后可右键菜单重新打开。
+4. 模型就位后自动拉起后端，窗口内可开始配音。关闭窗口会一并退出后端进程。最小化到托盘后可右键菜单重新打开。
 5. 换量化档或复用已有的 gguf：把文件放进安装目录的 `models\`（认任意 `*.gguf`），或者直接在启动页点**「使用本地模型文件…」**挑一个现成的 gguf，
    或者把绝对路径写进 `%LOCALAPPDATA%\BreezeTTS2\model-path.txt`（第一行），也可以用环境变量 `BREEZE_MODEL` 指定。
    查找顺序：`BREEZE_MODEL` → `model-path.txt` → `%LOCALAPPDATA%\BreezeTTS2\models` → 安装目录的 `runtime\models`。换档前先退出程序。
@@ -123,6 +139,7 @@ POST   /api/audio/convert       变声转换
 | --- | --- |
 | `<安装目录>\models\` | gguf 模型（下载的或你自己放的） |
 | `<安装目录>\voices\` | 保存的音色 |
+| `<安装目录>\design-presets.json` | 在「音色设计」页主动保存的本地预设 |
 | `<安装目录>\logs\launcher.log` | 启动与后端日志 |
 | `<安装目录>\model-path.txt` | 指定的模型绝对路径（挑本地 gguf 时写入） |
 | `<安装目录>\cache\` | Chromium 缓存（`app.setPath('userData')` 改过来的） |
@@ -133,7 +150,7 @@ POST   /api/audio/convert       变声转换
 
 **不在本地打包**，全部走 GitHub Actions（`.github/workflows/build.yml`）：push 到 `main` 或手动 `workflow_dispatch` 触发，跑完在 Actions 的 Artifacts 里取 `BreezeTTS2-Setup-*.exe`；打 tag 会自动挂到 Release。
 
-CI 的步骤：下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.cpp` 的 `v0.1.3-windows-x64-vulkan.zip`）→ 解到 `shell/runtime/` → `npm ci` → `electron-builder --win nsis` → 校验产物并打印 sha256。
+CI 使用 Node.js 24。下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.cpp` 的 `v0.1.3-windows-x64-vulkan.zip`）并解到 `shell/runtime/`，然后运行 `npm ci` 和 `electron-builder --win nsis`。安装包会在临时 Windows 环境静默安装并执行无模型首启自检，最后打印产物的 SHA-256。
 
 本地只想调界面（不产安装包）：
 
@@ -141,7 +158,14 @@ CI 的步骤：下载上游官方 Windows 运行时包（`HoppouAI/Breeze-TTS-2.
 cd shell
 npm install
 npm start        # 先同步 src/ui → shell/ui，再 electron .
-npm run selftest # 不开窗口：跑主进程 + 本地服务 + 后端 + 界面自检
+npm run selftest # 需要本地模型和后端运行时，检查后端与界面
+```
+
+要在 Windows 上检查无模型时的首启界面，请在 `shell` 目录下用独立数据目录运行。运行前确保当前终端未设置 `BREEZE_MODEL`，且 `BREEZE_RUNTIME` 指向的运行时目录中没有模型。
+
+```powershell
+$env:BREEZE_DATA = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+npm run selftest:offline
 ```
 
 ## 目录

@@ -17,3 +17,7 @@ webview/
 .ico*.py
 .mk*.py
 .nsis*
+
+# 本地音色设计预设
+/.data/design-presets.json
+/.data/design-presets.json.*.tmp

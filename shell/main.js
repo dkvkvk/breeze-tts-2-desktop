@@ -6,7 +6,8 @@ const fs = require('fs');
 const backend = require('./backend');
 const uiServer = require('./server');
 
-const SELFTEST = process.argv.includes('--selftest');
+const OFFLINE_SELFTEST = process.argv.includes('--selftest-offline');
+const SELFTEST = OFFLINE_SELFTEST || process.argv.includes('--selftest');
 const DEV = !app.isPackaged;
 
 let win = null;
@@ -201,7 +202,14 @@ async function selftest() {
     fs.mkdirSync(dataRoot(), { recursive: true });
     paths = backend.init({ runtime: runtimeDir(), dataRoot: dataRoot(), srvPort: 18099 });
     check('路径解析', !!paths.modelPath, paths.modelPath);
-    check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
+    if (OFFLINE_SELFTEST) {
+      check('首启模型路径', !backend.modelPresent() &&
+        paths.modelPath === path.join(paths.modelsDir, backend.DEFAULT_FILE), paths.modelPath);
+      check('首启数据目录', [paths.modelsDir, paths.voicesDir, paths.logsDir, paths.cacheDir]
+        .every(dir => fs.existsSync(dir)));
+    } else {
+      check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
+    }
     const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, hooks: {} });
     uiPort = bound.port;
     check('本地服务启动', uiPort > 0, 'port ' + uiPort);
@@ -211,7 +219,8 @@ async function selftest() {
       'version=' + st.version + ' model=' + st.modelPresent);
 
     const md = await (await fetch('http://127.0.0.1:' + uiPort + '/local/models')).json();
-    check('模型列表接口', Array.isArray(md.models) && md.models.length > 0, 'models=' + md.models.length + ' active=' + String(md.active || '').split(/[\\/]/).pop());
+    check('模型列表接口', Array.isArray(md.models) && (OFFLINE_SELFTEST ? md.models.length === 0 : md.models.length > 0),
+      'models=' + md.models.length + ' active=' + String(md.active || '').split(/[\\/]/).pop());
     check('下载档位目录', Array.isArray(md.catalog) && md.catalog.length === 7, 'catalog=' + (md.catalog || []).length);
     check('下载源列表', Array.isArray(md.mirrors) && md.mirrors.length >= 2, (md.mirrors || []).join('/'));
     const bad = await (await fetch('http://127.0.0.1:' + uiPort + '/local/model-use', {
@@ -224,7 +233,28 @@ async function selftest() {
     const js = await fetch('http://127.0.0.1:' + uiPort + '/audio.js');
     check('audio.js 可达', js.ok);
 
-    if (backend.modelPresent()) {
+    if (OFFLINE_SELFTEST) {
+      const w = createWindow(false);
+      let firstRunReady = false;
+      for (let i = 0; i < 30; i++) {
+        firstRunReady = await w.webContents.executeJavaScript(
+          '!document.getElementById("boot").hidden && document.querySelectorAll("#bootHint button.boot-pick").length === 2');
+        if (firstRunReady) break;
+        await new Promise(r => setTimeout(r, 200));
+      }
+      check('首启显示下载和选择本地模型入口', firstRunReady);
+      const longformReady = await w.webContents.executeJavaScript(`(() => {
+        const tab = document.querySelector('[data-tab="longform"]');
+        if (!tab || typeof BreezeLongform === 'undefined') return false;
+        tab.click();
+        const script = document.getElementById('b-text');
+        script.value = '第一段\\n第二段';
+        script.dispatchEvent(new Event('input'));
+        return !document.querySelector('[data-panel="longform"]').hidden &&
+          !document.getElementById('b-go').disabled && document.getElementById('b-plan').textContent.includes('2 段');
+      })()`);
+      check('长文配音页加载与分段预览', longformReady);
+    } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();
       while (Date.now() - t0 < 180000) {

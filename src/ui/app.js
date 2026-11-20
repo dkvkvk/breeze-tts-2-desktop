@@ -95,6 +95,7 @@ function pumpWave(waveEl, peak, idx) {
 
 /* ---------------- 流式合成 ---------------- */
 function streamSpeech(url, form, ui, onDone) {
+  if (state.abort) { toast('已有合成任务，完成或停止后再生成。'); return; }
   var parts = [];
   var total = 0;
   var carry = null;
@@ -187,7 +188,7 @@ function streamSpeech(url, form, ui, onDone) {
       if (onDone) onDone(total / SR);
     })
     .catch(function (e) {
-      if (e.name === 'AbortError') { q('st').textContent = '已停止'; setStatus('ok', '就绪'); }
+      if (e.name === 'AbortError') { resetPlayback(); q('st').textContent = '已停止'; setStatus('ok', '就绪'); }
       else {
         q('st').textContent = '失败';
         var err = document.createElement('div');
@@ -281,15 +282,13 @@ function renderVoices() {
     });
     if (prev && opts.some(function (x) { return x.id === prev; })) sel.value = prev;
   });
-  var rv = $('r-voice');
-  var prevR = rv.value;
-  rv.innerHTML = '<option value="">不使用（仅靠指令）</option>';
-  opts.forEach(function (o1) {
-    var o = document.createElement('option');
-    o.value = o1.id; o.textContent = o1.t;
-    rv.appendChild(o);
+  [['r-voice', '不使用（仅靠指令）'], ['b-voice', '使用模型默认音色']].forEach(function (pair) {
+    var select = $(pair[0]);
+    var previous = select.value;
+    select.replaceChildren(new Option(pair[1], ''));
+    opts.forEach(function (option) { select.add(new Option(option.t, option.id)); });
+    if (opts.some(function (option) { return option.id === previous; })) select.value = previous;
   });
-  rv.value = prevR || '';
 }
 
 /* ---------------- 页面切换 ---------------- */
@@ -298,7 +297,8 @@ var PAGES = {
   clone: ['音色克隆', '给一段参考录音，让模型用那个声音说话。'],
   direct: ['表演指挥', '用自然语言指挥语气、语速与情绪。'],
   convert: ['变声转换', '保留原录音的说话节奏，只换掉说话的人。'],
-  library: ['音色库', '管理已保存的音色，供其余页面直接调用。']
+  library: ['音色库', '管理已保存的音色，供其余页面直接调用。'],
+  longform: ['长文配音', '把脚本分段合成，导出一份完整语音和时间对齐的字幕。']
 };
 function switchTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
@@ -330,8 +330,78 @@ function ui(p) {
   return { go: $(p + '-go'), stop: $(p + '-stop'), out: $(p + '-out') };
 }
 
+function bindDesignPresets() {
+  var endpoint = '/local/design-presets';
+  var list = $('d-preset-list');
+  var name = $('d-preset-name');
+  var apply = $('d-preset-apply');
+  var remove = $('d-preset-delete');
+  var save = $('d-preset-save');
+  var presets = [];
+  var busy = false;
+
+  function updateButtons() {
+    list.disabled = busy || presets.length === 0;
+    apply.disabled = remove.disabled = busy || !list.value;
+    save.disabled = busy;
+  }
+
+  async function request(url, options, selected) {
+    busy = true;
+    updateButtons();
+    try {
+      var response = await fetch(url, options);
+      var data = await response.json();
+      if (!response.ok) throw new Error(data.error || '预设操作失败');
+      presets = data;
+      list.replaceChildren(new Option(presets.length ? '选择已保存的预设' : '暂无已保存预设', ''));
+      presets.forEach(function (preset) { list.add(new Option(preset.name, preset.name)); });
+      list.value = selected || '';
+      return true;
+    } catch (e) {
+      toast('预设操作失败：' + e.message);
+      return false;
+    } finally {
+      busy = false;
+      updateButtons();
+    }
+  }
+
+  list.onchange = updateButtons;
+  apply.onclick = function () {
+    var preset = presets.find(function (item) { return item.name === list.value; });
+    if (!preset) return;
+    $('d-inst').value = preset.instruction;
+    toast('已套用「' + preset.name + '」');
+  };
+  remove.onclick = async function () {
+    var selected = list.value;
+    if (!selected || !confirm('删除预设「' + selected + '」？')) return;
+    if (await request(endpoint + '?name=' + encodeURIComponent(selected), { method: 'DELETE' })) {
+      toast('已删除预设「' + selected + '」');
+    }
+  };
+  $('d-preset-form').onsubmit = async function (event) {
+    event.preventDefault();
+    if (busy) return;
+    var presetName = name.value.trim();
+    var instruction = $('d-inst').value.trim();
+    if (!presetName || !instruction) { toast('请填写预设名称和音色描述'); return; }
+    if (await request(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: presetName, instruction: instruction })
+    }, presetName)) {
+      if (name.value.trim() === presetName) name.value = '';
+      toast('已保存预设「' + presetName + '」');
+    }
+  };
+  request(endpoint);
+}
+
 function bindDesign() {
   var u = ui('d');
+  bindDesignPresets();
   u.stop.onclick = stopStream;
   u.go.onclick = function () {
     var text = $('d-text').value.trim();
@@ -495,7 +565,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
   b.onclick = function () { switchTab(b.dataset.tab); };
 });
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
-bindDesign(); bindClone(); bindDirect(); bindConvert();
+bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform();
 bindModel();
 boot();
 
