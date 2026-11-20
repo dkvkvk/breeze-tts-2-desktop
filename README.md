@@ -91,8 +91,8 @@ POST   /api/audio/convert       变声转换
 3. 首次启动会下载 `breeze-tts-2-q4_k.gguf`（约 2.4 GB），断点续传 + 镜像回退，界面上有进度。
 4. 模型就位后自动拉起后端，窗口里五页可用；关窗口 = 退出，后端进程一并结束。最小化到托盘后可右键菜单重新打开。
 5. 换量化档或复用已有的 gguf：把文件放进安装目录的 `models\`（认任意 `*.gguf`），或者直接在启动页点**「使用本地模型文件…」**挑一个现成的 gguf，
-   或者把绝对路径写进 `%LOCALAPPDATA%\BreezeTTS2\model-path.txt`（第一行），也可以用环境变量 `BREEZE_MODEL` 指定。
-   查找顺序：`BREEZE_MODEL` → `model-path.txt` → `%LOCALAPPDATA%\BreezeTTS2\models` → 安装目录的 `runtime\models`。换档前先退出程序。
+   也可以退出程序后，把绝对路径写进安装目录下的 `model-path.txt` 第一行，或用环境变量 `BREEZE_MODEL` 指定。
+   查找顺序为 `BREEZE_MODEL` → 数据目录下的 `model-path.txt` → 数据目录下的 `models\` → 随安装包提供的 `resources\runtime\models\` → `resources\runtime\`。设置 `BREEZE_DATA` 可指定数据目录。
 
 卸载走「设置 → 应用 → Breeze TTS 2」，或运行安装目录下的 `BreezeTTS2.exe --uninstall`。
 
@@ -143,6 +143,8 @@ npm install
 npm start        # 先同步 src/ui → shell/ui，再 electron .
 npm run selftest # 不开窗口：跑主进程 + 本地服务 + 后端 + 界面自检
 ```
+
+开发运行默认把模型、音色和缓存存到仓库根目录的 `.data/`。Git 会忽略这个目录。
 
 ## 目录
 
