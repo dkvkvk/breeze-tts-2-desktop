@@ -95,6 +95,7 @@ function pumpWave(waveEl, peak, idx) {
 
 /* ---------------- 流式合成 ---------------- */
 function streamSpeech(url, form, ui, onDone) {
+  if (state.abort) { toast('已有合成任务，完成或停止后再生成。'); return; }
   var parts = [];
   var total = 0;
   var carry = null;
@@ -187,7 +188,7 @@ function streamSpeech(url, form, ui, onDone) {
       if (onDone) onDone(total / SR);
     })
     .catch(function (e) {
-      if (e.name === 'AbortError') { q('st').textContent = '已停止'; setStatus('ok', '就绪'); }
+      if (e.name === 'AbortError') { resetPlayback(); q('st').textContent = '已停止'; setStatus('ok', '就绪'); }
       else {
         q('st').textContent = '失败';
         var err = document.createElement('div');
@@ -281,15 +282,13 @@ function renderVoices() {
     });
     if (prev && opts.some(function (x) { return x.id === prev; })) sel.value = prev;
   });
-  var rv = $('r-voice');
-  var prevR = rv.value;
-  rv.innerHTML = '<option value="">不使用（仅靠指令）</option>';
-  opts.forEach(function (o1) {
-    var o = document.createElement('option');
-    o.value = o1.id; o.textContent = o1.t;
-    rv.appendChild(o);
+  [['r-voice', '不使用（仅靠指令）'], ['b-voice', '使用模型默认音色']].forEach(function (pair) {
+    var select = $(pair[0]);
+    var previous = select.value;
+    select.replaceChildren(new Option(pair[1], ''));
+    opts.forEach(function (option) { select.add(new Option(option.t, option.id)); });
+    if (opts.some(function (option) { return option.id === previous; })) select.value = previous;
   });
-  rv.value = prevR || '';
 }
 
 /* ---------------- 页面切换 ---------------- */
@@ -298,7 +297,8 @@ var PAGES = {
   clone: ['音色克隆', '给一段参考录音，让模型用那个声音说话。'],
   direct: ['表演指挥', '用自然语言指挥语气、语速与情绪。'],
   convert: ['变声转换', '保留原录音的说话节奏，只换掉说话的人。'],
-  library: ['音色库', '管理已保存的音色，供其余页面直接调用。']
+  library: ['音色库', '管理已保存的音色，供其余页面直接调用。'],
+  longform: ['长文配音', '把脚本分段合成，导出一份完整语音和时间对齐的字幕。']
 };
 function switchTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
@@ -565,7 +565,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
   b.onclick = function () { switchTab(b.dataset.tab); };
 });
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
-bindDesign(); bindClone(); bindDirect(); bindConvert();
+bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform();
 bindModel();
 boot();
 

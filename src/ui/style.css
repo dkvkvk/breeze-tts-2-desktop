@@ -124,6 +124,13 @@ input[type=file]:hover{border-color:var(--fg);color:var(--fg)}
 .out:empty{display:none}
 .card{border:1px solid var(--line);border-radius:2px;padding:16px}
 .card+.card{margin-top:12px}
+.longform-result progress{width:100%;accent-color:var(--fg)}
+.longform-note{font-size:12px;color:var(--muted)}
+.longform-use-design{margin-bottom:14px}
+.longform-list{margin:18px 0 0;padding-left:28px}
+.longform-list li{padding:9px 0;border-top:1px solid var(--line)}
+.longform-line{overflow-wrap:anywhere}
+.longform-list .longform-note,.longform-list button{margin-inline-start:12px}
 .wave{display:flex;align-items:flex-end;gap:1px;height:44px;margin-bottom:14px}
 .wave i{flex:1;background:var(--line-strong);min-height:1px}
 .wave i.is-live{background:var(--fg)}

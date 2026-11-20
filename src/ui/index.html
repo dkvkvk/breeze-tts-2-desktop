@@ -26,6 +26,7 @@
       <button class="nav-item" data-tab="direct"><span class="nav-idx">03</span>表演指挥</button>
       <button class="nav-item" data-tab="convert"><span class="nav-idx">04</span>变声转换</button>
       <button class="nav-item" data-tab="library"><span class="nav-idx">05</span>音色库</button>
+      <button class="nav-item" data-tab="longform"><span class="nav-idx">06</span>长文配音</button>
     </nav>
     <div class="side-foot">
       <div class="status" id="status"><i class="dot"></i><span id="statusText">连接中</span></div>
@@ -200,6 +201,57 @@
         删除只从内存与列表移除，磁盘上的 <code>.breeze</code> 文件会保留，重启后回来。
       </div>
     </section>
+    <section class="tab" data-panel="longform" hidden>
+      <label class="field">
+        <span class="label">导入脚本或草稿 <em>UTF-8 TXT / JSON</em></span>
+        <input type="file" id="b-file" accept=".txt,.json,text/plain,application/json">
+      </label>
+      <label class="field">
+        <span class="label">配音脚本</span>
+        <textarea id="b-text" rows="6" aria-describedby="b-plan" placeholder="输入或粘贴台词。换行会开始新的一段。"></textarea>
+        <span id="b-plan" class="longform-note"></span>
+      </label>
+      <label class="field">
+        <span class="label">音色描述 <em>可选</em></span>
+        <textarea id="b-inst" rows="2" maxlength="8192" placeholder="例如：语调平稳，吐字清楚。"></textarea>
+      </label>
+      <div class="btn-row longform-use-design">
+        <button class="btn btn-sm" id="b-use-design" type="button">使用音色设计的描述</button>
+      </div>
+      <div class="grid2">
+        <label class="field">
+          <span class="label">参考音色</span>
+          <select id="b-voice"><option value="">使用模型默认音色</option></select>
+        </label>
+        <label class="field">
+          <span class="label">段间停顿</span>
+          <select id="b-gap">
+            <option value="0">无</option>
+            <option value="250">0.25 秒</option>
+            <option value="500" selected>0.5 秒</option>
+            <option value="1000">1 秒</option>
+          </select>
+        </label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="b-go" disabled>开始生成</button>
+        <button class="btn btn-ghost" id="b-stop" disabled>停止合成</button>
+        <button class="btn btn-sm" id="b-draft" disabled>保存配音草稿</button>
+      </div>
+      <div class="out" id="b-result" hidden>
+        <div class="card longform-result">
+          <progress id="b-progress" value="0" max="1" aria-label="合成进度"></progress>
+          <p id="b-status" role="status"></p>
+          <div class="btn-row">
+            <button class="btn btn-sm" id="b-play" disabled>试听全部已完成片段</button>
+            <button class="btn btn-sm" id="b-wav" disabled>导出 WAV</button>
+            <button class="btn btn-sm" id="b-srt" disabled>导出 SRT</button>
+          </div>
+          <audio id="b-player" controls hidden></audio>
+          <ol id="b-list" class="longform-list"></ol>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -274,6 +326,8 @@
 
 <div id="toast" class="toast" hidden></div>
 <script src="audio.js"></script>
+<script src="longform.js"></script>
+<script src="longform-ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

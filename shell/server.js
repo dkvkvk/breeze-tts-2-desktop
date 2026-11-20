@@ -78,10 +78,15 @@ function proxy(req, res, url, srvPort) {
     delete headers['transfer-encoding'];
     delete headers['connection'];
     res.writeHead(upRes.statusCode || 502, headers);
+    upRes.on('error', error => res.destroy(error));
     upRes.pipe(res);
+  });
+  res.once('close', () => {
+    if (!res.writableEnded) upReq.destroy();
   });
   upReq.setTimeout(600000, () => upReq.destroy(new Error('upstream timeout')));
   upReq.on('error', e => {
+    if (res.destroyed) return;
     if (res.headersSent) { res.destroy(); return; }
     json(res, { error: '后端未就绪: ' + e.message }, 502);
   });

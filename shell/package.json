@@ -1,12 +1,13 @@
 {
   "name": "breeze-tts-2-desktop",
   "productName": "Breeze TTS 2",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Breeze TTS 2 桌面端：Electron 外壳 + 本地推理后端",
   "main": "main.js",
   "author": "dkvkvk",
   "license": "Apache-2.0",
   "scripts": {
+    "test": "node --test test/*.test.js",
     "sync-ui": "node sync-ui.js",
     "start": "npm run sync-ui && electron .",
     "selftest": "npm run sync-ui && electron . --selftest",

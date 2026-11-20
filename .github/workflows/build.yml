@@ -46,6 +46,10 @@ jobs:
         working-directory: shell
         run: npm ci
 
+      - name: Test long-form synthesis and exports
+        working-directory: shell
+        run: npm test
+
       - name: Build NSIS installer
         working-directory: shell
         run: npm run dist

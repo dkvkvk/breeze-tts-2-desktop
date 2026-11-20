@@ -243,6 +243,17 @@ async function selftest() {
         await new Promise(r => setTimeout(r, 200));
       }
       check('首启显示下载和选择本地模型入口', firstRunReady);
+      const longformReady = await w.webContents.executeJavaScript(`(() => {
+        const tab = document.querySelector('[data-tab="longform"]');
+        if (!tab || typeof BreezeLongform === 'undefined') return false;
+        tab.click();
+        const script = document.getElementById('b-text');
+        script.value = '第一段\\n第二段';
+        script.dispatchEvent(new Event('input'));
+        return !document.querySelector('[data-panel="longform"]').hidden &&
+          !document.getElementById('b-go').disabled && document.getElementById('b-plan').textContent.includes('2 段');
+      })()`);
+      check('长文配音页加载与分段预览', longformReady);
     } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();
