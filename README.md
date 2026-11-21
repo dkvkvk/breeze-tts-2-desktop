@@ -10,11 +10,9 @@
 
 声轨工坊是一个开源 Windows 本地配音应用。它将小说章节和剧本制作成多角色音频与字幕，也提供音色设计、参考音色管理和本机 Agent 接口。推理基于 [Breeze TTS 2 模型](https://huggingface.co/BreezeBlue/Breeze-TTS-2)和 [Breeze-TTS-2.cpp](https://github.com/HoppouAI/Breeze-TTS-2.cpp)。
 
-![声轨工坊正文批注。角色音色用彩色下划线标记，选中文字可弹出音色工具栏](docs/chapter-workbench.png)
+![声轨工坊正文批注。原创短篇中的角色用彩色下划线区分，页边显示选中台词的音色](docs/examples/blue-envelope/workbench.png)
 
-[试听「雨后的末班车」四角色样音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/chapter-demo.wav) · [原始剧本 TXT](docs/examples/chapter-demo.txt) · [角色字幕 SRT](docs/examples/chapter-demo.srt)
-
-[《斗破苍穹》第一章导读示例](docs/examples/first-chapter/README.md)，演示在小说正文中识别对白、分配音色和导出角色字幕。
+[《末班渡船的蓝信封》完整原创示例](docs/examples/blue-envelope/README.md) · [听四角色完整配音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/blue-envelope/blue-envelope.wav) · [查看全篇标注长图](docs/examples/blue-envelope/annotation-full.png)
 
 ## 核心功能
 
