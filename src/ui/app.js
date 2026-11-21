@@ -222,6 +222,10 @@ function loadVoices() {
   }).catch(function () { state.voices = []; renderVoices(); });
 }
 
+function voiceDisplayName(voice) {
+  return voice?.metadata?.display_name || voice?.id || '';
+}
+
 function renderVoices() {
   var lib = state.voices.filter(function (v) { return v.saved; });
   $('libCount').textContent = String(lib.length);
@@ -239,7 +243,7 @@ function renderVoices() {
     var left = document.createElement('div');
     var id = document.createElement('div');
     id.className = 'lib-id';
-    id.textContent = v.id;
+    id.textContent = voiceDisplayName(v);
     if (!v.saved) { var c = document.createElement('span'); c.className = 'lib-cached'; c.textContent = '缓存'; id.appendChild(c); }
     left.appendChild(id);
     var d = document.createElement('div');
@@ -255,15 +259,15 @@ function renderVoices() {
     del.className = 'btn btn-sm btn-ghost';
     del.textContent = '移除';
     del.onclick = function () {
-      if (!confirm('从列表移除「' + v.id + '」？磁盘文件会保留。')) return;
-      fetch('/api/voices/' + encodeURIComponent(v.id), { method: 'DELETE' }).then(loadVoices).then(function () { toast('已移除 ' + v.id); });
+      if (!confirm('从列表移除「' + voiceDisplayName(v) + '」？磁盘文件会保留。')) return;
+      fetch('/api/voices/' + encodeURIComponent(v.id), { method: 'DELETE' }).then(loadVoices).then(function () { toast('已移除 ' + voiceDisplayName(v)); });
     };
     row.appendChild(del);
     list.appendChild(row);
   });
 
   var opts = state.voices.map(function (v) {
-    return { id: v.id, t: v.id + '  ·  ' + fmtSec(v.seconds || 0) + (v.saved ? '' : '（缓存）') };
+    return { id: v.id, t: voiceDisplayName(v) + '  ·  ' + fmtSec(v.seconds || 0) + (v.saved ? '' : '（缓存）') };
   });
   [['c-voice', opts], ['v-voice', opts]].forEach(function (pair) {
     var sel = $(pair[0]);

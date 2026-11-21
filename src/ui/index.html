@@ -264,42 +264,85 @@
         <label class="field"><span class="label">章节名称</span>
           <input id="chapter-title" type="text" maxlength="100" placeholder="例如 第三章 车站">
         </label>
-        <div class="grid2">
-          <label class="field"><span class="label">章节格式</span>
-            <select id="chapter-mode"><option value="script">带角色名的剧本</option><option value="novel">小说原文</option></select>
+        <div id="chapter-entry">
+          <div class="grid2">
+            <label class="field"><span class="label">章节格式</span>
+              <select id="chapter-mode"><option value="novel">自动识别对白</option><option value="script">带角色名的剧本</option></select>
+            </label>
+            <label class="field"><span class="label">导入章节 <em>UTF-8 TXT</em></span>
+              <input id="chapter-file" type="file" accept=".txt,text/plain">
+            </label>
+          </div>
+          <label class="field"><span class="label">章节正文</span>
+            <textarea id="chapter-source" rows="8" placeholder="林夏问：“末班车还没到吗？”&#10;周明抬头看了看站牌。&#10;“还没。”周明答道。"></textarea>
           </label>
-          <label class="field"><span class="label">导入章节 <em>UTF-8 TXT</em></span>
-            <input id="chapter-file" type="file" accept=".txt,text/plain">
-          </label>
+          <button id="chapter-parse" class="btn btn-primary" type="button">识别对白并标注</button>
         </div>
-        <label class="field"><span class="label">章节原文</span>
-          <textarea id="chapter-source" rows="6" placeholder="旁白：走廊里安静下来。&#10;林夏：你终于来了。&#10;周明：路上堵车。"></textarea>
-        </label>
-        <button id="chapter-parse" class="btn btn-primary" type="button">解析章节</button>
         <div id="chapter-review" class="chapter-review" hidden>
-          <h2>角色和音色</h2>
-          <p class="longform-note">为每位角色选一个已保存的参考音色。旁白可使用模型默认音色。</p>
-          <div id="chapter-roles"></div>
-          <div class="chapter-actions">
-            <input id="chapter-new-role" type="text" maxlength="32" placeholder="新角色名" aria-label="新角色名">
-            <button id="chapter-add-role" class="btn btn-sm" type="button">添加角色</button>
-            <button id="chapter-refresh-voices" class="btn btn-sm btn-ghost" type="button">刷新音色库</button>
-          </div>
-          <div class="chapter-actions">
-            <select id="chapter-alias-source" aria-label="待合并的别名"></select>
-            <select id="chapter-alias-target" aria-label="保留的角色"></select>
-            <button id="chapter-merge-role" class="btn btn-sm" type="button" disabled>合并别名</button>
-          </div>
-          <h2>台词分配</h2>
-          <div class="chapter-assignment">
-            <div class="chapter-assignment-head">
-              <p id="chapter-selection" role="status">选中文字或勾选整段，再点击下方角色。</p>
-              <label><input id="chapter-pending-only" type="checkbox"> 只看待确认</label>
+          <section class="chapter-paper" aria-label="正文音色批注">
+            <header class="chapter-paper-head">
+              <div>
+                <h2>正文批注</h2>
+                <p>选中文字分配音色。点击下划线可以查看或修改批注。</p>
+              </div>
+              <button id="chapter-edit-source" class="btn btn-sm btn-ghost" type="button">编辑正文</button>
+            </header>
+            <div class="chapter-page">
+              <h3 id="chapter-page-title" class="chapter-page-title"></h3>
+              <div id="chapter-document" class="chapter-document" tabindex="0" aria-label="章节正文"></div>
+              <aside id="chapter-margin-note" class="chapter-margin-note" aria-label="当前音色批注" hidden>
+                <strong id="chapter-note-role"></strong>
+                <p id="chapter-note-voice"></p>
+              </aside>
             </div>
-            <p id="chapter-selection-text" class="chapter-selection-text" hidden></p>
-            <div id="chapter-palette" class="chapter-palette" role="group" aria-label="分配所选台词"></div>
+            <div class="chapter-paper-foot">
+              <div id="chapter-legend" class="chapter-legend" aria-label="音色标记"></div>
+              <p id="chapter-pending-count" role="status"></p>
+            </div>
+          </section>
+          <div id="chapter-selection-tools" class="chapter-selection-tools" role="group" aria-label="所选文字的音色" hidden>
+            <div class="chapter-selection-actions">
+              <button id="chapter-use-voice" type="button">选用音色</button>
+              <button id="chapter-new-voice" type="button">新建音色</button>
+              <button id="chapter-preview-mark" type="button" hidden>试听</button>
+              <button id="chapter-rerun-mark" type="button" hidden>重录</button>
+              <button id="chapter-dismiss-tools" type="button" aria-label="关闭批注工具">×</button>
+            </div>
+            <div id="chapter-voice-options" class="chapter-selection-panel" hidden>
+              <label class="field"><span class="label">章节角色或音色库预设</span>
+                <select id="chapter-speaker-choice"></select>
+              </label>
+              <button id="chapter-apply-voice" class="btn btn-sm btn-primary" type="button">应用到选区</button>
+            </div>
+            <form id="chapter-create-form" class="chapter-selection-panel" hidden>
+              <label class="field"><span class="label">角色或音色名称</span>
+                <input id="chapter-voice-name" type="text" maxlength="32" required>
+              </label>
+              <label id="chapter-design-label" class="field" hidden><span class="label">音色设计预设</span>
+                <select id="chapter-design-choice"></select>
+              </label>
+              <label class="field"><span class="label">音色描述</span>
+                <textarea id="chapter-voice-instruction" rows="2" maxlength="8192" placeholder="例如清亮的青年女声，语速自然" required></textarea>
+              </label>
+              <button id="chapter-create-apply" class="btn btn-sm btn-primary" type="submit">创建并应用</button>
+              <p id="chapter-create-status" class="longform-note" role="status"></p>
+            </form>
           </div>
-          <ol id="chapter-lines" class="chapter-lines"></ol>
+          <details class="chapter-voice-settings">
+            <summary>章节角色与音色</summary>
+            <div id="chapter-roles"></div>
+            <div class="chapter-actions">
+              <input id="chapter-new-role" type="text" maxlength="32" placeholder="新角色名" aria-label="新角色名">
+              <button id="chapter-add-role" class="btn btn-sm" type="button">添加角色</button>
+              <button id="chapter-refresh-voices" class="btn btn-sm btn-ghost" type="button">刷新音色库</button>
+            </div>
+            <div class="chapter-actions">
+              <select id="chapter-alias-source" aria-label="待合并的别名"></select>
+              <select id="chapter-alias-target" aria-label="保留的角色"></select>
+              <button id="chapter-merge-role" class="btn btn-sm" type="button" disabled>合并别名</button>
+            </div>
+          </details>
+
           <label class="field"><span class="label">段间停顿</span>
             <select id="chapter-gap">
               <option value="0">无</option><option value="250">0.25 秒</option>
