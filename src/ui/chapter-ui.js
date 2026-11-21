@@ -11,17 +11,18 @@ function bindChapter() {
   const file = view('file');
   const gap = view('gap');
   const roleList = view('roles');
-  const lineList = view('lines');
-  const palette = view('palette');
-  const selectionLabel = view('selection');
-  const selectionText = view('selection-text');
+  const entry = view('entry');
+  const paper = view('document');
+  const note = view('margin-note');
+  const tools = view('selection-tools');
+  const choice = view('speaker-choice');
+  const createForm = view('create-form');
+  const voiceOptions = view('voice-options');
   const roleColors = ['#1f5cb5', '#16704f', '#7444aa', '#ab4825', '#a23567',
     '#0d6879', '#896013', '#4053a2', '#975035', '#386321', '#844481', '#246572'];
   const aliasSource = view('alias-source');
   const aliasTarget = view('alias-target');
-  const pending = view('pending-only');
   const output = view('output');
-  const selected = new Set();
   const player = generatedAudio(view('player'));
   const history = view('history');
   const api = '/api/v1/jobs';
@@ -30,7 +31,7 @@ function bindChapter() {
   let chapter;
   let job;
   let saved = '';
-  let rows = [];
+  let designPresets = [];
   let range = null;
   let submitting = false;
   let timer;
@@ -52,6 +53,7 @@ function bindChapter() {
     return {
       title: title.value.trim(), source: chapter.source, mode: chapter.mode, pauseMs: Number(gap.value),
       roles: chapter.roles.map(({ id, name, voiceId, instruction }) => ({ id, name, voiceId, instruction })),
+      ranges: chapter.segments.map(({ start, end }) => [start, end]),
       segments: chapter.segments.map(({ text, speakerId, slot }) => ({ text, speakerId, slot }))
     };
   }
@@ -91,19 +93,6 @@ function bindChapter() {
     element.style.setProperty('--speaker-color', color);
   }
 
-  function assignSelection(id) {
-    try {
-      if (range) {
-        chapter.segments = VoiceTrackChapter.splitSelection(chapter.segments, range.index, range.start, range.end, id);
-      } else {
-        for (const index of selected) chapter.segments[index].speakerId = id;
-      }
-      selected.clear();
-      renderLines();
-      refresh();
-    } catch (error) { toast(error.message); }
-  }
-
   function renderRoles() {
     const roles = chapter.roles.map(role => {
       const row = document.createElement('div');
@@ -122,7 +111,7 @@ function bindChapter() {
           if (chapter.roles.some(other => other.id !== role.id && other.name === next)) throw new Error('角色名已存在。');
           role.name = next;
           renderRoles();
-          renderLines();
+          renderDocument();
           refresh();
         } catch (error) {
           name.value = role.name;
@@ -131,13 +120,13 @@ function bindChapter() {
       };
       const defaultLabel = role.id === VoiceTrackChapter.narratorId ? '模型默认音色' : '请选择参考音色';
       voice.add(new Option(defaultLabel, ''));
-      for (const item of state.voices.filter(item => item.saved)) voice.add(new Option(item.id, item.id));
+      for (const item of state.voices.filter(item => item.saved)) voice.add(new Option(voiceDisplayName(item), item.id));
       if (role.voiceId && !Array.from(voice.options).some(option => option.value === role.voiceId)) {
         voice.add(new Option(role.voiceId + '（音色缺失）', role.voiceId));
       }
       voice.value = role.voiceId;
       voice.setAttribute('aria-label', role.name + '参考音色');
-      voice.onchange = () => { role.voiceId = voice.value; refresh(); };
+      voice.onchange = () => { role.voiceId = voice.value; renderDocument(); refresh(); };
       instruction.type = 'text';
       instruction.placeholder = '表演指令（可选）';
       instruction.maxLength = 8192;
@@ -148,13 +137,6 @@ function bindChapter() {
       return row;
     });
     roleList.replaceChildren(...roles);
-    palette.replaceChildren(...chapter.roles.map(role => {
-      const button = action(role.name, () => assignSelection(role.id), '分配给' + role.name);
-      button.className = 'chapter-speaker-button';
-      button.dataset.roleId = role.id;
-      colorRole(button, role.id);
-      return button;
-    }));
     selectRoles(aliasSource, aliasSource.value, '选择别名');
     const narrator = aliasSource.querySelector('option[value="narrator"]');
     if (narrator) narrator.disabled = true;
@@ -162,94 +144,254 @@ function bindChapter() {
     updateAlias();
   }
 
-  function renderLines() {
+  function dismissTools() {
+    tools.hidden = note.hidden = true;
     range = null;
-    rows = chapter.segments.map((segment, index) => {
-      const li = document.createElement('li');
-      const controls = document.createElement('div');
-      const checked = document.createElement('input');
-      const speaker = document.createElement('select');
-      const text = document.createElement('textarea');
-      const number = document.createElement('span');
-      number.className = 'chapter-line-number';
-      number.textContent = String(index + 1).padStart(2, '0');
-      controls.className = 'chapter-line-controls';
-      li.className = 'chapter-turn';
-      colorRole(li, segment.speakerId);
-      checked.type = 'checkbox';
-      checked.checked = selected.has(index);
-      checked.setAttribute('aria-label', '选中第 ' + (index + 1) + ' 段');
-      checked.onchange = () => {
-        range = null;
-        if (checked.checked) selected.add(index);
-        else selected.delete(index);
-        updateSelection();
-      };
-      selectRoles(speaker, segment.speakerId, '待确认');
-      speaker.className = 'chapter-line-speaker';
-      speaker.setAttribute('aria-label', '第 ' + (index + 1) + ' 段说话人');
-      speaker.onchange = () => {
-        segment.speakerId = speaker.value || null;
-        colorRole(li, segment.speakerId);
-        if (pending.checked) renderLines();
-        refresh();
-      };
-      text.rows = 2;
-      text.value = segment.text;
-      text.setAttribute('aria-label', '第 ' + (index + 1) + ' 段台词');
-      text.oninput = () => {
-        if (range?.index === index) range = null;
-        segment.text = text.value;
-        refresh();
-      };
-      text.onselect = text.onpointerup = () => {
-        const start = text.selectionStart;
-        const end = text.selectionEnd;
-        if (end > start && text.value.slice(start, end).trim()) {
-          range = { index, start, end };
-          selected.clear();
-        } else if (range?.index === index || document.activeElement === text) range = null;
-        updateSelection();
-      };
-      const preview = action('试听', () => play(jobPath() + '/preview/' + index), '试听第 ' + (index + 1) + ' 段');
-      const rerun = action('重录', () => submit(false, index), '重录第 ' + (index + 1) + ' 段');
-      const detail = document.createElement('span');
-      detail.className = 'longform-note';
-      controls.append(checked, number, speaker, detail, preview, rerun);
-      li.append(controls, text);
-      li.hidden = pending.checked && Boolean(segment.speakerId);
-      return { li, checked, preview, rerun, detail };
-    });
-    lineList.replaceChildren(...rows.map(row => row.li));
+    voiceOptions.hidden = createForm.hidden = true;
   }
 
-  function updateSelection() {
-    for (const button of palette.children) button.disabled = !range && !selected.size;
-    rows.forEach(({ li, checked }, index) => {
-      checked.checked = selected.has(index);
-      li.classList.toggle('is-selected', checked.checked || range?.index === index);
+  function renderDocument() {
+    dismissTools();
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    chapter.segments.forEach((segment, index) => {
+      fragment.append(chapter.source.slice(cursor, segment.start));
+      const mark = document.createElement('span');
+      mark.textContent = chapter.source.slice(segment.start, segment.end);
+      mark.dataset.index = index;
+      const role = chapter.roles.find(item => item.id === segment.speakerId);
+      if (segment.speakerId !== VoiceTrackChapter.narratorId || role?.voiceId) {
+        mark.className = segment.speakerId ? 'chapter-mark' : 'chapter-mark is-unassigned';
+        mark.title = role?.name || '待确认说话人';
+        colorRole(mark, segment.speakerId);
+      }
+      fragment.append(mark);
+      cursor = segment.end;
     });
-    selectionText.hidden = !range;
-    if (range) {
-      selectionLabel.textContent = '已选中第 ' + (range.index + 1) + ' 段文字';
-      selectionText.textContent = chapter.segments[range.index].text.slice(range.start, range.end);
-    } else {
-      selectionLabel.textContent = selected.size
-        ? '已勾选 ' + selected.size + ' 段台词'
-        : '选中文字或勾选整段，再点击下方角色。';
-      selectionText.textContent = '';
+    fragment.append(chapter.source.slice(cursor));
+    paper.replaceChildren(fragment);
+    updateLegend();
+  }
+
+  function updateLegend() {
+    const used = new Set(chapter.segments.map(segment => segment.speakerId));
+    const items = chapter.roles.filter(role => used.has(role.id) &&
+      (role.id !== VoiceTrackChapter.narratorId || role.voiceId)).map(role => {
+      const label = document.createElement('span');
+      colorRole(label, role.id);
+      label.textContent = role.name;
+      return label;
+    });
+    view('legend').replaceChildren(...items);
+    const pending = chapter.segments.filter(segment => segment.speakerId === null).length;
+    view('pending-count').textContent = pending ? pending + ' 处对白待确认' : '';
+  }
+
+  function textPosition(node, offset) {
+    const prefix = document.createRange();
+    prefix.selectNodeContents(paper);
+    prefix.setEnd(node, offset);
+    return prefix.toString().length;
+  }
+
+  function positionTools() {
+    if (!range || tools.hidden) return;
+    const bounds = range.anchor.getBoundingClientRect();
+    if (!note.hidden) {
+      const page = paper.parentElement.getBoundingClientRect();
+      note.style.top = Math.max(8, Math.min(bounds.top - page.top - 3, page.height - note.offsetHeight - 8)) + 'px';
+    }
+    const width = tools.offsetWidth;
+    const height = tools.offsetHeight;
+    const margin = 12;
+    const top = bounds.top - height - 8;
+    tools.style.left = Math.max(margin, Math.min(bounds.left, innerWidth - width - margin)) + 'px';
+    tools.style.top = Math.max(margin, Math.min(top >= margin ? top : bounds.bottom + 8,
+      innerHeight - height - margin)) + 'px';
+  }
+
+  function showTools(start, end, anchor) {
+    if (!chapter.source.slice(start, end).trim()) return;
+    const index = chapter.segments.findIndex(segment => segment.start === start && segment.end === end);
+    range = { start, end, index, anchor };
+    const segment = chapter.segments[index];
+    const role = chapter.roles.find(item => item.id === segment?.speakerId);
+    note.hidden = !segment || (role?.id === VoiceTrackChapter.narratorId && !role.voiceId);
+    if (!note.hidden) {
+      colorRole(note, segment.speakerId);
+      view('note-role').textContent = role?.name || '待确认说话人';
+      const voice = state.voices.find(item => item.id === role?.voiceId);
+      view('note-voice').textContent = voice ? voiceDisplayName(voice) : role?.voiceId || '尚未指定音色';
+    }
+    voiceOptions.hidden = createForm.hidden = true;
+    updateTools();
+    tools.hidden = false;
+    positionTools();
+  }
+
+  function updateTools() {
+    const index = range?.index ?? -1;
+    view('preview-mark').hidden = index < 0 || dirty() || !job?.readySegments.includes(index);
+    view('rerun-mark').hidden = index < 0 || !job || job.state === 'draft' || !canGenerate();
+  }
+
+  function captureSelection(event) {
+    if (!chapter || editor.disabled) return;
+    const selected = getSelection();
+    if (selected.rangeCount && !selected.isCollapsed) {
+      const selection = selected.getRangeAt(0);
+      if (paper.contains(selection.startContainer) && paper.contains(selection.endContainer)) {
+        showTools(textPosition(selection.startContainer, selection.startOffset),
+          textPosition(selection.endContainer, selection.endOffset), selection.cloneRange());
+        return;
+      }
+    }
+    if (event.type !== 'pointerup') return;
+    const mark = event.target.closest('[data-index]');
+    if (!mark || !paper.contains(mark)) return;
+    const segment = chapter.segments[Number(mark.dataset.index)];
+    showTools(segment.start, segment.end, mark);
+  }
+
+  function canGenerate() {
+    try {
+      const pieces = prepared();
+      return !pieces.some(piece => piece.voiceId &&
+        !state.voices.some(item => item.saved && item.id === piece.voiceId));
+    } catch (error) { return false; }
+  }
+
+  function applyRole(id) {
+    chapter.segments = VoiceTrackChapter.assignRange(chapter, range.start, range.end, id);
+    getSelection().removeAllRanges();
+    renderDocument();
+    refresh();
+  }
+
+  function addRole(name, voiceId = '') {
+    if (chapter.roles.length >= VoiceTrackChapter.maxRoles) throw new Error('角色数量已达到上限。');
+    const role = { id: 'role-' + nextRoleNumber++, name, voiceId, instruction: '' };
+    chapter.roles.push(role);
+    return role;
+  }
+
+  function openVoiceOptions() {
+    const roles = document.createElement('optgroup');
+    roles.label = '章节角色';
+    for (const role of chapter.roles) roles.append(new Option(role.name, 'role:' + role.id));
+    const voices = document.createElement('optgroup');
+    voices.label = '已保存的音色';
+    for (const voice of state.voices.filter(item => item.saved)) voices.append(new Option(voiceDisplayName(voice), 'voice:' + voice.id));
+    choice.replaceChildren(new Option('选择角色或音色', ''), roles);
+    if (voices.children.length) choice.append(voices);
+    view('apply-voice').disabled = true;
+    createForm.hidden = true;
+    voiceOptions.hidden = false;
+    positionTools();
+    choice.focus();
+  }
+
+  function applyVoice() {
+    if (!range || !choice.value) return;
+    const [kind, ...rest] = choice.value.split(':');
+    const value = rest.join(':');
+    try {
+      if (kind === 'role') return applyRole(value);
+      const speakers = new Set(chapter.segments.filter(segment =>
+        segment.start < range.end && segment.end > range.start).map(segment => segment.speakerId));
+      let role = speakers.size === 1 && chapter.roles.find(item =>
+        item.id !== VoiceTrackChapter.narratorId && !item.voiceId && speakers.has(item.id));
+      if (role) {
+        role.voiceId = value;
+        renderRoles();
+      } else role = chapter.roles.find(item => item.voiceId === value);
+      if (!role) {
+        let name = '音色 ' + nextRoleNumber;
+        try { name = VoiceTrackChapter.roleName(voiceDisplayName(state.voices.find(item => item.id === value))); } catch (error) { /* Voice IDs may contain punctuation. */ }
+        if (chapter.roles.some(item => item.name === name)) name = '音色 ' + nextRoleNumber;
+        VoiceTrackChapter.assignRange(chapter, range.start, range.end, 'role-' + nextRoleNumber);
+        role = addRole(name, value);
+        renderRoles();
+      }
+      applyRole(role.id);
+    } catch (error) { toast(error.message); }
+  }
+
+  async function openCreateForm() {
+    createForm.reset();
+    const roleId = chapter.segments[range.index]?.speakerId;
+    const role = chapter.roles.find(item => item.id === roleId && !item.voiceId &&
+      item.id !== VoiceTrackChapter.narratorId);
+    view('voice-name').value = role?.name || '';
+    view('create-status').textContent = '';
+    voiceOptions.hidden = true;
+    createForm.hidden = false;
+    view('design-label').hidden = true;
+    positionTools();
+    view('voice-name').focus();
+    try {
+      designPresets = await (await request('/local/design-presets')).json();
+      const select = view('design-choice');
+      select.replaceChildren(new Option('自定义音色描述', ''), ...designPresets.map(
+        (preset, index) => new Option(preset.name, String(index))));
+      view('design-label').hidden = !designPresets.length;
+      positionTools();
+    } catch (error) { /* Custom descriptions remain available. */ }
+  }
+
+  async function createVoice(event) {
+    event.preventDefault();
+    if (!range || submitting) return;
+    let name;
+    let role;
+    const instruction = view('voice-instruction').value.trim();
+    if (!instruction) { toast('请填写音色描述。'); return; }
+    const selection = range;
+    try {
+      name = VoiceTrackChapter.roleName(view('voice-name').value);
+      role = chapter.roles.find(item => item.name === name);
+      if (role?.voiceId || state.voices.some(item => item.saved && voiceDisplayName(item) === name)) {
+        throw new Error('该名称已有音色，可选择已有音色或换一个名称。');
+      }
+      if (!role && chapter.roles.length >= VoiceTrackChapter.maxRoles) throw new Error('角色数量已达到上限。');
+      VoiceTrackChapter.assignRange(chapter, selection.start, selection.end, role?.id || 'role-' + nextRoleNumber);
+    } catch (error) { toast(error.message); return; }
+
+    submitting = true;
+    refresh();
+    view('create-status').textContent = '正在生成参考音色…';
+    try {
+      const text = '天色渐亮，窗外传来轻轻的脚步声。我们先到门口看看，再决定往哪里走。';
+      const signal = AbortSignal.timeout(180000);
+      const response = await request('/api/speech', {
+        method: 'POST', body: buildSpeechForm(text, instruction, '', null, ''), signal
+      });
+      const clip = await BreezeLongform.readPcm(response, BreezeLongform.sampleRate * 30, signal);
+      const reference = BreezeLongform.wav([{ ...clip, start: 0 }], 0);
+      const form = new FormData();
+      form.append('ref_audio', reference, 'chapter-reference.wav');
+      form.append('ref_text', text);
+      form.append('description', Array.from(instruction).slice(0, 1000).join(''));
+      form.append('metadata', JSON.stringify({ display_name: name }));
+      form.append('name', 'chapter-' + crypto.randomUUID());
+      const voice = await (await request('/api/voices', { method: 'POST', body: form, signal })).json();
+      if (!voice.id) throw new Error('未收到新音色的编号。');
+      if (!role) role = addRole(name);
+      role.voiceId = voice.id;
+      await loadVoices();
+      range = selection;
+      applyRole(role.id);
+      renderRoles();
+      toast('已创建并应用「' + name + '」。');
+    } catch (error) { view('create-status').textContent = error.message; }
+    finally {
+      submitting = false;
+      refresh();
     }
   }
-
   function updateAlias() {
     view('merge-role').disabled = !aliasSource.value || !aliasTarget.value ||
       aliasSource.value === VoiceTrackChapter.narratorId || aliasSource.value === aliasTarget.value;
-  }
-
-  function turnAudioKey(spec, index) {
-    const segment = spec.segments[index];
-    const role = spec.roles.find(item => item.id === segment?.speakerId);
-    return JSON.stringify([segment?.text.trim(), role?.voiceId.trim(), role?.instruction.trim()]);
   }
 
   function refresh(message) {
@@ -272,6 +414,7 @@ function bindChapter() {
       return;
     }
 
+    view('page-title').textContent = title.value.trim() || '章节正文';
     let warning;
     try {
       const pieces = prepared();
@@ -280,34 +423,20 @@ function bindChapter() {
       if (missing) throw new Error('「' + missing.speakerName + '」的参考音色缺失，请重新选择。');
     } catch (error) { warning = error.message; }
 
-    const prior = job && !unchanged && saved ? JSON.parse(saved) : null;
-    const priorPositions = prior && new Map(prior.segments.map((segment, index) => [segment.slot ?? index, index]));
-    let affected = 0;
-    rows.forEach(({ preview, rerun, detail }, index) => {
-      const previousIndex = priorPositions ? priorPositions.get(chapter.segments[index].slot ?? index) : index;
-      const recorded = ready.has(previousIndex);
-      const changed = recorded && prior && turnAudioKey(prior, previousIndex) !== turnAudioKey(chapter, index);
-      if (changed) affected++;
-      preview.disabled = !unchanged || !ready.has(index);
-      rerun.disabled = locked || Boolean(warning) || !job || job.state === 'draft';
-      if (!chapter.segments[index].speakerId) detail.textContent = '待确认';
-      else if (changed) detail.textContent = '待更新';
-      else detail.textContent = recorded ? '已生成' : '待生成';
-    });
     view('save').disabled = locked || !dirty() || chapter.source !== source.value || chapter.mode !== mode.value;
     view('go').disabled = locked || Boolean(warning) || (unchanged && job.state === 'complete');
     view('go').textContent = unchanged && ['canceled', 'failed', 'interrupted'].includes(job.state)
       ? '继续生成' : '生成整章';
-    let detail = affected ? affected + ' 段台词待更新' : '';
+    let detail = '';
     if (unchanged) {
-      const count = ready.size + ' / ' + rows.length + ' 段';
+      const count = ready.size + ' / ' + chapter.segments.length + ' 段';
       if (job.state === 'running' && job.currentSegment) detail = '正在生成第 ' + job.currentSegment + ' 段 · ' + count;
       else if (job.state === 'draft') detail = '草稿已保存';
       else detail = labels[job.state] + ' · ' + count;
       if (job.error) detail += '。' + job.error;
     }
     status.textContent = message || [detail, active ? '' : warning].filter(Boolean).join('。');
-    updateSelection();
+    updateTools();
   }
 
   function showProject(nextChapter, nextJob) {
@@ -316,12 +445,11 @@ function bindChapter() {
     job = nextJob;
     saved = job ? JSON.stringify(payload()) : '';
     nextRoleNumber = 1 + Math.max(0, ...chapter.roles.map(role => Number(/^role-(\d+)$/.exec(role.id)?.[1]) || 0));
-    selected.clear();
-    pending.checked = false;
+    entry.hidden = true;
     player.clear();
     review.hidden = false;
     renderRoles();
-    renderLines();
+    renderDocument();
     refresh();
     schedulePoll();
   }
@@ -334,24 +462,33 @@ function bindChapter() {
 
   view('parse').onclick = () => {
     try {
-      const result = VoiceTrackChapter.parse(source.value, mode.value);
-      if (chapter && !confirm('重新解析会开启一份新的章节。已经保存的项目可以从历史记录打开。继续？')) return;
+      if (chapter && chapter.source === source.value && chapter.mode === mode.value) {
+        entry.hidden = true;
+        review.hidden = false;
+        return;
+      }
+      const result = VoiceTrackChapter.readDocument(source.value, mode.value);
+      if (chapter && !confirm('重新识别会重建正文的音色批注。继续？')) return;
+      for (const role of result.roles) {
+        const previous = chapter?.roles.find(item => item.name === role.name);
+        if (previous) Object.assign(role, { voiceId: previous.voiceId, instruction: previous.instruction });
+      }
+      source.value = result.source;
       showProject(result);
     } catch (error) { refresh(error.message); }
   };
   source.oninput = mode.onchange = title.oninput = () => refresh();
   gap.onchange = () => refresh();
-  pending.onchange = () => { selected.clear(); renderLines(); refresh(); };
   view('add-role').onclick = () => {
     const input = view('new-role');
     try {
       if (chapter.roles.length >= VoiceTrackChapter.maxRoles) throw new Error('角色数量已达到上限。');
       const name = VoiceTrackChapter.roleName(input.value);
       if (chapter.roles.some(role => role.name === name)) throw new Error('角色名已存在。');
-      chapter.roles.push({ id: 'role-' + nextRoleNumber++, name, voiceId: '', instruction: '' });
+      addRole(name);
       input.value = '';
       renderRoles();
-      renderLines();
+      renderDocument();
       refresh();
     } catch (error) { toast(error.message); }
   };
@@ -365,7 +502,7 @@ function bindChapter() {
     }
     chapter.roles = chapter.roles.filter(role => role.id !== from.id);
     renderRoles();
-    renderLines();
+    renderDocument();
     refresh();
   };
   view('refresh-voices').onclick = async () => {
@@ -438,15 +575,13 @@ function bindChapter() {
     try {
       const { chapter: spec, editor: meta, job: record, includeSpeakers } =
         await (await request(api + '/' + id + '/project')).json();
-      source.value = meta.source || spec.segments.map(({ text, speakerId }) => {
-        const role = spec.roles.find(role => role.id === speakerId);
-        return role && role.id !== VoiceTrackChapter.narratorId ? role.name + '：' + text : text;
-      }).join('\n');
+      const document = VoiceTrackChapter.restoreDocument(meta.source || '', spec.segments, meta.ranges);
+      source.value = document.source;
       mode.value = meta.mode || 'script';
       title.value = meta.title || '';
       gap.value = String(spec.pauseMs);
       view('include-speakers').checked = Boolean(includeSpeakers);
-      showProject({ ...spec, source: source.value, mode: mode.value }, record);
+      showProject({ ...spec, ...document, mode: mode.value }, record);
       // Voice IDs are stored in the project, while the library may have changed.
       await loadVoices();
       renderRoles();
@@ -537,15 +672,50 @@ function bindChapter() {
     clearTimeout(timer);
     chapter = job = null;
     source.value = title.value = history.value = '';
-    mode.value = 'script';
+    mode.value = 'novel';
     gap.value = '500';
     saved = '';
     review.hidden = true;
+    entry.hidden = false;
+    dismissTools();
     view('include-speakers').checked = false;
     player.clear();
     refresh();
     source.focus();
   };
+  paper.addEventListener('pointerdown', () => { if (!submitting) dismissTools(); });
+  paper.addEventListener('pointerup', captureSelection);
+  paper.addEventListener('keyup', captureSelection);
+  document.addEventListener('pointerdown', event => {
+    if (!submitting && !paper.contains(event.target) && !tools.contains(event.target)) dismissTools();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !submitting) dismissTools();
+  });
+  window.addEventListener('scroll', positionTools, { passive: true });
+  window.addEventListener('resize', positionTools);
+  view('edit-source').onclick = () => {
+    dismissTools();
+    entry.hidden = false;
+    review.hidden = true;
+    source.focus();
+  };
+  view('use-voice').onclick = openVoiceOptions;
+  view('new-voice').onclick = openCreateForm;
+  view('dismiss-tools').onclick = dismissTools;
+  view('preview-mark').onclick = () => play(jobPath() + '/preview/' + range.index);
+  view('rerun-mark').onclick = () => {
+    const index = range.index;
+    dismissTools();
+    submit(false, index);
+  };
+  view('apply-voice').onclick = applyVoice;
+  choice.onchange = () => { view('apply-voice').disabled = !choice.value; };
+  view('design-choice').onchange = event => {
+    const preset = designPresets[event.target.value];
+    if (event.target.value && preset) view('voice-instruction').value = preset.instruction;
+  };
+  createForm.onsubmit = createVoice;
   view('go').onclick = () => submit(false);
   view('save').onclick = () => submit(true);
   view('stop').onclick = stop;

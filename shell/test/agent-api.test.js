@@ -98,7 +98,7 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   const draftResponse = await disabled.desktop('/jobs', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      title: '待核对', source: '“你好。”', mode: 'novel', draft: true, pauseMs: 500,
+      title: '待核对', source: '“你好。”', ranges: [[1, 4]], mode: 'novel', draft: true, pauseMs: 500,
       roles: [{ id: 'narrator', name: '旁白', voiceId: '', instruction: '' }],
       segments: [{ speakerId: null, text: '你好。' }]
     })
@@ -143,6 +143,7 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   const readDraft = await (await restarted.desktop('/jobs/' + draftId + '/project')).json();
   assert.equal(readDraft.job.state, 'draft');
   assert.equal(readDraft.editor.source, '“你好。”');
+  assert.deepEqual(readDraft.editor.ranges, [[1, 4]]);
   assert.equal(readDraft.chapter.segments[0].speakerId, null);
   assert.equal((await restarted.send('/jobs')).status, 404);
   assert.equal((await restarted.send(jobRoute + '/project')).status, 404);

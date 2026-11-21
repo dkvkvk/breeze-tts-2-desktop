@@ -96,3 +96,31 @@ test('assigns an exact selection without renumbering the stored audio of later t
     segments: [{ text: '一', speakerId: 'narrator', slot: 1 }, { text: '二', speakerId: 'narrator' }]
   }), /编号无效/);
 });
+
+test('keeps novel paragraphs and quote punctuation while detecting explicit speakers', () => {
+  const source = '雨声停了。林夏轻声问：“门开了吗？”周明答道：“开了。”\n\n“等一等。”她低声说。\n“我去看看。”林夏说。';
+  const result = chapter.readDocument(source, 'novel');
+  const names = new Map(result.roles.map(role => [role.id, role.name]));
+  assert.equal(result.source, source);
+  assert.deepEqual(result.segments.filter(part => part.speakerId !== 'narrator')
+    .map(({ text, speakerId }) => [text, names.get(speakerId)]),
+  [['门开了吗？', '林夏'], ['开了。', '周明'], ['等一等。', undefined], ['我去看看。', '林夏']]);
+  assert(chapter.validRanges(source, result.segments, result.segments.map(part => [part.start, part.end])));
+  const conflicting = chapter.readDocument('林夏说：“走吧。”周明说。', 'novel');
+  assert.equal(conflicting.segments.find(part => part.text === '走吧。').speakerId, null);
+});
+
+test('changes the selected range across inline marks without touching original text or later clips', () => {
+  const source = '林夏：一句话，两句话。\n\n周明：接着说。';
+  const result = chapter.readDocument(source, 'novel');
+  const original = result.segments;
+  const first = original[0];
+  const split = chapter.assignRange(result, first.start + 4, first.end, 'role-2');
+  assert.deepEqual(split.map(({ text, speakerId, slot }) => [text, speakerId, slot]),
+    [['一句话，', 'role-1', 0], ['两句话。', 'role-2', 2], ['接着说。', 'role-2', 1]]);
+  const ranges = split.map(part => [part.start, part.end]);
+  assert(chapter.validRanges(source, split, ranges));
+  assert.deepEqual(chapter.restoreDocument(source, split, ranges).segments, split);
+  assert.deepEqual(chapter.restoreDocument('旧原文', original).segments.map(part => part.text),
+    original.map(part => part.text));
+});

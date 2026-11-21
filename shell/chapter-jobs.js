@@ -74,7 +74,11 @@ function createChapterJobs({ root, chapter, audio, request, modelPath }) {
     const title = typeof input.title === 'string' ? input.title.trim().slice(0, 100) : '';
     const source = typeof input.source === 'string' ? input.source : '';
     if (source.length > audio.maxChars) throw new JobError(400, 'invalid_source', '章节原文超过长度限制。');
-    return { title, source, mode: input.mode === 'novel' ? 'novel' : 'script' };
+    const ranges = input.ranges;
+    if (ranges !== undefined && !chapter.validRanges(source, input.segments, ranges)) {
+      throw new JobError(400, 'invalid_ranges', '正文与音色批注的位置不一致。');
+    }
+    return { title, source, mode: input.mode === 'novel' ? 'novel' : 'script', ranges };
   }
 
   function ready(job) {

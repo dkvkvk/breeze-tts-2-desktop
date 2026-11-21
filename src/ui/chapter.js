@@ -73,6 +73,150 @@ const VoiceTrackChapter = (longform => {
     return chapter;
   }
 
+  const speechCue = /^(?:[，,。！？…\s]*)([\p{Script=Han}]{2,4}?)(?:轻声|低声|小声|大声)?(?:说道|说|问道|问|回答|答道|答|回应|喊道|喊|叫道)\s*[。！？!?]?$/u;
+  const beforeQuote = /(?:^|[。！？；;，,]\s*)([\p{Script=Han}]{2,4}?)(?:轻声|低声|小声|大声)?(?:说道|说|问道|问|回答|答道|答|回应|喊道|喊|叫道)\s*[：:，,]\s*$/u;
+
+  function namedCue(value) {
+    if (!value || /^(?:[他她它你我咱]|众人|两人|有人|那人|一人|对方|男子|女子|男人|女人|女孩|男孩|小声|轻声|低声)/u.test(value)) return null;
+    return value;
+  }
+
+  function readDocument(input, mode) {
+    if (typeof input !== 'string' || input.length > longform.maxChars) {
+      throw new Error('一次最多导入 ' + longform.maxChars + ' 字。');
+    }
+    const source = input.replace(/^\uFEFF/u, '').replace(/\r\n?/gu, '\n');
+    const roles = [{ id: narratorId, name: '旁白', voiceId: '', instruction: '' }];
+    const segments = [];
+    const names = new Map([['旁白', narratorId]]);
+
+    function roleFor(name) {
+      if (!name) return null;
+      if (names.has(name)) return names.get(name);
+      if (roles.length >= maxRoles) throw new Error('一次最多处理 ' + maxRoles + ' 个角色（含旁白）。');
+      const id = 'role-' + roles.length;
+      roles.push({ id, name, voiceId: '', instruction: '' });
+      names.set(name, id);
+      return id;
+    }
+
+    function append(start, end, speakerId) {
+      const raw = source.slice(start, end);
+      const text = raw.trim();
+      if (!/[\p{L}\p{N}]/u.test(text)) return;
+      start += raw.length - raw.trimStart().length;
+      segments.push({ text, speakerId, start, end: start + text.length });
+      if (segments.length > maxSegments) throw new Error('可合成内容超过 ' + maxSegments + ' 段，请分成多章。');
+    }
+
+    for (const line of source.matchAll(/[^\n]+/gu)) {
+      const [body] = line;
+      const base = line.index;
+      const label = /^(\s*)([^:：]{1,32})[:：]\s*/u.exec(body);
+      const name = label?.[2].trim().normalize('NFC');
+      const labelIsRole = name && roleNamePattern.test(name) && (mode === 'script' ||
+        (name.length <= 6 && !/[“”「」『』"。！？]/u.test(name) && !/(?:说|问|答|回答|道|喊|写|表示)$/u.test(name)));
+      if (labelIsRole && label[0].length < body.length) {
+        append(base + label[0].length, base + body.length, roleFor(name));
+        continue;
+      }
+      const dash = /^\s*[—–]{1,2}\s*/u.exec(body);
+      if (dash) {
+        append(base + dash[0].length, base + body.length, null);
+        continue;
+      }
+
+      const quotes = /[“「『"]/gu;
+      let cursor = 0;
+      let hit;
+      while ((hit = quotes.exec(body))) {
+        const start = hit.index + 1;
+        const close = body.indexOf(closingQuote[hit[0]], start);
+        const end = close < 0 ? body.length : close;
+        const next = close < 0 ? -1 : body.slice(close + 1).search(/[“「『"]/u);
+        const after = close < 0 ? '' : body.slice(close + 1, next < 0 ? body.length : close + 1 + next);
+        const before = namedCue(beforeQuote.exec(body.slice(cursor, hit.index))?.[1]);
+        const afterName = namedCue(speechCue.exec(after.trim())?.[1]);
+        const speaker = before && afterName && before !== afterName ? null : before || afterName;
+        append(base + cursor, base + hit.index, narratorId);
+        append(base + start, base + end, roleFor(speaker));
+        cursor = end + (close < 0 ? 0 : 1);
+        quotes.lastIndex = cursor;
+      }
+      append(base + cursor, base + body.length, narratorId);
+    }
+    if (!segments.length) throw new Error('请导入或输入章节正文。');
+    return { source, mode, roles, segments };
+  }
+
+  function validRanges(source, segments, ranges) {
+    if (!Array.isArray(ranges) || ranges.length !== segments.length) return false;
+    let previous = 0;
+    return ranges.every((entry, index) => {
+      if (!Array.isArray(entry) || entry.length !== 2) return false;
+      const [start, end] = entry;
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < previous || end < start ||
+          end > source.length || source.slice(start, end) !== segments[index].text) return false;
+      previous = end;
+      return true;
+    });
+  }
+
+  function restoreDocument(input, segments, ranges) {
+    if (validRanges(input, segments, ranges)) {
+      return { source: input, segments: segments.map((segment, index) => {
+        const [start, end] = ranges[index];
+        return { ...segment, start, end };
+      }) };
+    }
+    const source = input.replace(/\r\n?/gu, '\n');
+    let cursor = 0;
+    const positioned = segments.map(segment => {
+      const start = source.indexOf(segment.text, cursor);
+      if (start !== -1) cursor = start + segment.text.length;
+      return { ...segment, start, end: start + segment.text.length };
+    });
+    if (positioned.every(segment => segment.start !== -1)) return { source, segments: positioned };
+
+    // Agent submissions and edited legacy turns may only have the synthesis text.
+    cursor = 0;
+    return {
+      source: segments.map(segment => segment.text).join('\n'),
+      segments: segments.map(segment => {
+        const start = cursor;
+        const end = start + segment.text.length;
+        cursor = end + 1;
+        return { ...segment, start, end };
+      })
+    };
+  }
+
+  function assignRange(chapter, start, end, speakerId) {
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > chapter.source.length || start >= end) {
+      throw new Error('请先在正文中选中文字。');
+    }
+    const segments = chapter.segments.map((segment, index) => ({ ...segment, slot: segment.slot ?? index }));
+    let next = 1 + Math.max(...segments.map(segment => segment.slot));
+    let touched = false;
+    const updated = segments.flatMap(segment => {
+      const from = Math.max(start, segment.start);
+      const to = Math.min(end, segment.end);
+      if (from >= to || !chapter.source.slice(from, to).trim()) return segment;
+      touched = true;
+      if (speakerId === segment.speakerId) return segment;
+      const intervals = [[segment.start, from, segment.speakerId], [from, to, speakerId], [to, segment.end, segment.speakerId]];
+      return intervals.flatMap(([left, right, role], index) => {
+        const raw = chapter.source.slice(left, right);
+        if (!raw.trim()) return [];
+        return [{ text: raw, speakerId: role, start: left, end: right,
+          slot: index === 0 || (index === 1 && from === segment.start) ? segment.slot : next++ }];
+      });
+    });
+    if (!touched) throw new Error('所选文字没有可分配的台词。');
+    if (updated.length > maxSegments) throw new Error('可合成内容超过 ' + maxSegments + ' 段，请分成多章。');
+    return updated;
+  }
+
   function splitSelection(segments, index, start, end, speakerId) {
     const segment = segments[index];
     if (!segment || !Number.isInteger(start) || !Number.isInteger(end) ||
@@ -199,7 +343,7 @@ const VoiceTrackChapter = (longform => {
     for (const [key, clip] of replacements) clips.set(key, clip);
   }
 
-  return { narratorId, maxRoles, maxSegments, parse, splitSelection, validate, prepare, roleName, timeline, synthesize };
+  return { narratorId, maxRoles, maxSegments, parse, readDocument, restoreDocument, assignRange, validRanges, splitSelection, validate, prepare, roleName, timeline, synthesize };
 })(typeof module === 'object' && module.exports ? require('./longform') : BreezeLongform);
 
 if (typeof module === 'object') module.exports = VoiceTrackChapter;

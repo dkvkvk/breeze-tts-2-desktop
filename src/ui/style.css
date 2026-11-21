@@ -139,28 +139,111 @@ input[type=file]:hover{border-color:var(--fg);color:var(--fg)}
 #chapter-history{min-width:0;max-width:100%}
 .chapter-role{display:grid;grid-template-columns:minmax(96px,1fr) minmax(130px,1.2fr) minmax(130px,1.3fr);gap:8px;margin:8px 0}
 .chapter-role input:first-child{border-inline-start:4px solid var(--speaker-color);background:color-mix(in srgb,var(--speaker-color) 6%,white)}
-.chapter-assignment{position:sticky;top:0;z-index:2;padding:12px 14px;border:1px solid #d9dee6;border-radius:8px;background:#fff;box-shadow:0 3px 10px #2533520d}
-.chapter-assignment-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px;color:#394456}
-.chapter-assignment-head label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.chapter-selection-text{margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:#263344;background:#eef2f7;padding:5px 8px;border-radius:4px}
-.chapter-palette{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:100px;overflow:auto;padding:2px}
-.chapter-speaker-button{max-width:100%;display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border:1px solid color-mix(in srgb,var(--speaker-color) 28%,white);border-radius:20px;background:color-mix(in srgb,var(--speaker-color) 9%,white);color:var(--speaker-color);font-size:13px;font-weight:600;overflow-wrap:anywhere;cursor:pointer}
-.chapter-speaker-button::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
-.chapter-speaker-button:hover:not(:disabled){background:var(--speaker-color);color:#fff;border-color:var(--speaker-color)}
-.chapter-speaker-button:focus-visible{outline:2px solid var(--speaker-color);outline-offset:2px}
-.chapter-speaker-button:disabled{cursor:default}
-.chapter-lines{list-style:none;display:grid;gap:8px;margin:12px 0 20px}
-.chapter-turn{min-width:0;padding:9px 12px;border:1px solid color-mix(in srgb,var(--speaker-color) 18%,white);border-inline-start:4px solid var(--speaker-color);border-radius:6px;background:color-mix(in srgb,var(--speaker-color) 5%,white)}
-.chapter-turn.is-selected{outline:2px solid var(--speaker-color);outline-offset:-1px}
-.chapter-line-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.chapter-line-number{min-width:2ch;color:#566276;font:12px var(--mono)}
-.chapter-line-speaker{width:auto;min-width:105px;max-width:100%;padding-block:4px;border-color:color-mix(in srgb,var(--speaker-color) 30%,white);border-radius:4px;color:var(--speaker-color);font-weight:600}
-.chapter-line-controls .longform-note{margin-inline-end:auto;color:#526073}
-.chapter-line-controls .btn{background:transparent;border-radius:4px}
-.chapter-lines textarea{display:block;field-sizing:content;min-height:2.8em;max-height:13em;margin-top:6px;padding:6px 8px;background:transparent;border-color:transparent;border-radius:4px;line-height:1.65}
-.chapter-lines textarea:hover{background:#ffffff80}
-.chapter-lines textarea:focus{border-color:var(--speaker-color);background:#fff}
-.chapter-lines textarea::selection{background:var(--speaker-color);color:#fff}
+.chapter-paper {
+  margin: 20px 0;
+  border: 1px solid #dedbd2;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.chapter-paper-head, .chapter-paper-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 18px;
+  background: #faf9f6;
+}
+.chapter-paper-head { border-bottom: 1px solid #e9e6df; }
+.chapter-paper-head h2 { margin: 0; font-size: 14px; }
+.chapter-paper-head p, .chapter-paper-foot p { color: #575449; font-size: 12px; }
+.chapter-paper-foot { border-top: 1px solid #e9e6df; min-height: 42px; }
+.chapter-page {
+  position: relative;
+  padding: 32px clamp(18px, 5vw, 50px) 42px;
+  background: #fffefb;
+  color: #27251f;
+}
+.chapter-page-title {
+  margin: 0 0 24px;
+  text-align: center;
+  font: 600 24px/1.4 "Songti SC", "Noto Serif CJK SC", SimSun, serif;
+  overflow-wrap: anywhere;
+}
+.chapter-document {
+  min-height: 9em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 17px/2.15 "Songti SC", "Noto Serif CJK SC", SimSun, serif;
+  letter-spacing: .025em;
+  cursor: text;
+}
+.chapter-document:focus-visible { outline: 1px solid #a7a298; outline-offset: 7px; }
+.chapter-document ::selection, .chapter-document::selection { background: #d6e6fa; color: #1e2f45; }
+.chapter-mark {
+  text-decoration: underline var(--speaker-color) 2px;
+  text-underline-offset: .28em;
+  text-decoration-skip-ink: none;
+}
+.chapter-mark.is-unassigned { text-decoration-style: dashed; }
+.chapter-mark:hover { background: color-mix(in srgb, var(--speaker-color) 7%, transparent); }
+.chapter-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.chapter-legend span {
+  padding-inline: 2px;
+  font-size: 12px;
+  color: var(--speaker-color);
+  border-bottom: 2px solid var(--speaker-color);
+}
+.chapter-margin-note {
+  position: absolute;
+  right: 12px;
+  width: 106px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--speaker-color) 40%, #fff);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--speaker-color) 5%, #fff);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.chapter-margin-note strong { color: var(--speaker-color); }
+@container chapter-page (max-width: 615px) { .chapter-margin-note { display: none; } }
+@media (min-width: 980px) {
+  .chapter-page { padding-inline-end: 136px; }
+}
+@media (max-width: 979px) {
+  .chapter-margin-note { position: static; width: fit-content; max-width: 100%; margin-top: 12px; }
+}
+.chapter-selection-tools {
+  position: fixed;
+  z-index: 30;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  border: 1px solid #d7dce4;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 27px #2639532b;
+}
+.chapter-selection-actions { display: flex; align-items: center; gap: 2px; padding: 4px; }
+.chapter-selection-actions button {
+  border: 0;
+  padding: 7px 9px;
+  border-radius: 5px;
+  background: #fff;
+  color: #29354b;
+  white-space: nowrap;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chapter-selection-actions button:hover, .chapter-selection-actions button:focus-visible { background: #eef3fa; }
+.chapter-selection-panel { width: 300px; max-width: calc(100vw - 26px); padding: 10px 12px 12px; border-top: 1px solid #eceef3; }
+.chapter-selection-panel .field { margin-bottom: 10px; }
+.chapter-selection-panel .longform-note { margin-top: 7px; }
+.chapter-voice-settings { margin-bottom: 18px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.chapter-voice-settings summary { cursor: pointer; color: #434c5c; font-size: 13px; }
 #chapter-status{font-size:13px;overflow-wrap:anywhere}
 #chapter-output audio{margin-top:12px}
 @media (max-width:680px){.chapter-role{grid-template-columns:1fr}}
