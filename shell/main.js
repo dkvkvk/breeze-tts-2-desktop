@@ -77,10 +77,7 @@ async function pickModel() {
     filters: [{ name: 'GGUF 模型', extensions: ['gguf'] }]
   });
   if (r.canceled || !r.filePaths.length) return false;
-  backend.stop();
-  const ok = backend.setModelPath(r.filePaths[0]);
-  if (ok) backend.start();
-  return ok;
+  return backend.useModel(r.filePaths[0]).ok;
 }
 
 /* Chromium 的缓存/GPUCache 也改到安装目录，别写 C 盘 */

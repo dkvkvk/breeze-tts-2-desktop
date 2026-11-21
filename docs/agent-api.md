@@ -45,6 +45,20 @@ $env:VOICETRACK_AGENT_TOKEN = [Convert]::ToHexString([Security.Cryptography.Rand
 
 创建任务时可使用 `Idempotency-Key`。同一标识重试相同内容会返回原任务 ID。任务完成后用同一个令牌访问返回的 WAV 和 SRT 路径。
 
+在启动应用的 PowerShell 会话中可试跑以下单音色任务。任务状态为 `complete` 后再下载，两次请求均使用同一个令牌。
+
+```powershell
+$base = 'http://127.0.0.1:18080/api/v1'
+$headers = @{ Authorization = "Bearer $env:VOICETRACK_AGENT_TOKEN" }
+$job = Invoke-RestMethod "$base/jobs" -Method Post -Headers $headers -ContentType 'application/json; charset=utf-8' -Body '{"title":"接入测试","text":"列车即将到站。","pauseMs":500}'
+do {
+  Start-Sleep -Milliseconds 750
+  $progress = Invoke-RestMethod "$base/jobs/$($job.id)" -Headers $headers
+} while ($progress.state -in @('queued', 'running'))
+if ($progress.state -ne 'complete') { throw "任务状态为 $($progress.state)。$($progress.error)" }
+Invoke-WebRequest "$base/jobs/$($job.id)/artifacts/chapter.wav" -Headers $headers -OutFile 'chapter.wav'
+```
+
 ## MCP
 
 使用支持 stdio 的客户端启动 Node.js 22 或更高版本。安装版适配器位于 `resources\agent\voicetrack-mcp.cjs`。源码调试时可在 `shell` 目录运行 `npm run build:mcp` 生成相同的单文件适配器。
@@ -52,3 +66,30 @@ $env:VOICETRACK_AGENT_TOKEN = [Convert]::ToHexString([Security.Cryptography.Rand
 在客户端传入环境变量 `VOICETRACK_AGENT_TOKEN` 和 `VOICETRACK_API_BASE`。后者默认取 `http://127.0.0.1:18080/`。请在可信的客户端配置中设置令牌。
 
 工具提供 `breeze_get_status`、`breeze_list_voices`、`breeze_create_job`、`breeze_get_job`、`breeze_cancel_job`、`breeze_resume_job` 和 `breeze_get_artifacts`。先查询音色，再提交原文或已核对的角色与台词列表。完成后用本机链接下载产物。
+
+采用 `mcpServers` 配置的客户端可按下面的结构填写，替换安装路径、令牌和实际端口。
+
+```json
+{
+  "mcpServers": {
+    "voicetrack-studio": {
+      "command": "node",
+      "args": ["D:\\BreezeTTS2\\resources\\agent\\voicetrack-mcp.cjs"],
+      "env": {
+        "VOICETRACK_AGENT_TOKEN": "填入启动桌面应用时使用的令牌",
+        "VOICETRACK_API_BASE": "http://127.0.0.1:18080/"
+      }
+    }
+  }
+}
+```
+
+## 排查
+
+| 情况 | 处理 |
+| --- | --- |
+| 连不上应用 | 确认桌面应用仍在运行，并查看「API」面板的实际端口。 |
+| `agent_disabled` 或 `invalid_token` | 用同一个令牌启动应用所在进程和 Agent 客户端。已经打开的应用需要完全退出再启动。 |
+| `engine_unavailable` | 等桌面应用加载本地模型后重试。 |
+| `model_changed` | 在桌面切回项目原来使用的模型，再继续未完成任务。 |
+| 成品列表为空 | 查询任务状态。`failed` 时查看 `error` 字段。`complete` 后可获取 WAV 和 SRT。 |

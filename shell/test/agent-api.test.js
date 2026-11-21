@@ -18,6 +18,7 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   assert.match(path.basename(dataRoot), /^voicetrack-api-test-[a-zA-Z0-9]+$/);
   const clients = [];
   let failOnce = true;
+  let engineBusy = false;
   const calls = [];
   const token = 'test-token-only-0000000000';
   const desktopToken = 'test-desktop-only-0000000000';
@@ -33,6 +34,11 @@ test('authenticated chapter API resumes stored audio on restart and exports role
         method: 'POST', headers: req.headers, body: Buffer.concat(buffers)
       }).formData();
       const text = form.get('text');
+      if (engineBusy) {
+        engineBusy = false;
+        res.writeHead(409);
+        return res.end('busy');
+      }
       calls.push([text, form.get('voice_id')]);
       if (text === '门开了。' && failOnce) {
         failOnce = false;
@@ -148,9 +154,11 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   assert.deepEqual(project.job.readySegments, [0]);
   const partial = Buffer.from(await (await restarted.desktop(jobRoute + '/partial/chapter.wav')).arrayBuffer());
   assert.equal(partial.readUInt32LE(40), 48000);
+  engineBusy = true;
   await restarted.desktop(jobRoute + '/resume', { method: 'POST' });
   const complete = await until(restarted, id, 'complete');
   assert.equal(complete.completed, 2);
+  assert.equal(engineBusy, false);
   assert.deepEqual(calls, [['下雨了。', null], ['门开了。', 'voice-linxia'], ['门开了。', 'voice-linxia']]);
 
   const list = await (await restarted.send('/jobs/' + id + '/artifacts')).json();
@@ -177,6 +185,14 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   const revisedSrt = await (await restarted.send(jobRoute + '/artifacts/chapter.srt')).text();
   assert.match(revisedSrt, /00:00:01,250 --> 00:00:02,250\r\n林夏：门已经开了。/);
 
+  const renamed = await (await restarted.desktop(jobRoute, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...changed, title: '改名后的章节', draft: true })
+  })).json();
+  assert.equal(renamed.state, 'complete');
+  assert.equal(renamed.title, '改名后的章节');
+  assert.deepEqual(renamed.readySegments, [0, 1]);
+
   const mcp = new Client({ name: 'chapter-api-test', version: '1.0.0' });
   const transport = new StdioClientTransport({
     command: process.execPath,
@@ -187,13 +203,14 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   await mcp.connect(transport);
   assert((await mcp.listTools()).tools.some(tool => tool.name === 'breeze_create_job'));
   const queued = await mcp.callTool({
-    name: 'breeze_create_job', arguments: { text: '由 Agent 提交。', requestId: 'test-mcp' }
+    name: 'breeze_create_job', arguments: { text: '由 Agent 提交。', title: 'MCP 单音色章节', requestId: 'test-mcp' }
   });
   assert(!queued.isError, JSON.stringify(queued));
   const agentId = queued.structuredContent.result.id;
   await until(restarted, agentId, 'complete');
   const status = await mcp.callTool({ name: 'breeze_get_job', arguments: { id: agentId } });
   assert.equal(status.structuredContent.result.state, 'complete');
+  assert.equal(status.structuredContent.result.title, 'MCP 单音色章节');
   const assets = await mcp.callTool({ name: 'breeze_get_artifacts', arguments: { id: agentId } });
   const wavUrl = assets.structuredContent.result.find(item => item.name === 'chapter.wav').url;
   const downloaded = await fetch(wavUrl, { headers: { Authorization: 'Bearer ' + token } });

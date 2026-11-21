@@ -176,6 +176,12 @@ function bindChapter() {
       aliasSource.value === VoiceTrackChapter.narratorId || aliasSource.value === aliasTarget.value;
   }
 
+  function turnAudioKey(spec, index) {
+    const segment = spec.segments[index];
+    const role = spec.roles.find(item => item.id === segment?.speakerId);
+    return JSON.stringify([segment?.text.trim(), role?.voiceId.trim(), role?.instruction.trim()]);
+  }
+
   function refresh(message) {
     const active = Boolean(busy());
     const locked = submitting || active;
@@ -185,7 +191,7 @@ function bindChapter() {
     view('new').disabled = submitting;
     view('refresh-history').disabled = submitting;
     const unchanged = job && !dirty();
-    const ready = new Set(unchanged ? job.readySegments : []);
+    const ready = new Set(job?.readySegments || []);
     const hasAudio = unchanged && job.hasPrefix;
     view('play').disabled = view('wav').disabled = view('srt').disabled = !hasAudio;
     view('stop').disabled = submitting || !active;
@@ -203,16 +209,22 @@ function bindChapter() {
       if (missing) throw new Error('「' + missing.speakerName + '」的参考音色缺失，请重新选择。');
     } catch (error) { warning = error.message; }
 
+    const prior = job && !unchanged && saved ? JSON.parse(saved) : null;
+    let affected = 0;
     rows.forEach(({ preview, rerun, detail }, index) => {
-      preview.disabled = !ready.has(index);
+      const changed = ready.has(index) && prior && turnAudioKey(prior, index) !== turnAudioKey(chapter, index);
+      if (changed) affected++;
+      preview.disabled = !unchanged || !ready.has(index);
       rerun.disabled = locked || Boolean(warning) || !job || job.state === 'draft';
-      detail.textContent = ready.has(index) ? '已生成' : chapter.segments[index].speakerId ? '待生成' : '待确认';
+      if (!chapter.segments[index].speakerId) detail.textContent = '待确认';
+      else if (changed) detail.textContent = '待更新';
+      else detail.textContent = ready.has(index) ? '已生成' : '待生成';
     });
     view('save').disabled = locked || !dirty() || chapter.source !== source.value || chapter.mode !== mode.value;
     view('go').disabled = locked || Boolean(warning) || (unchanged && job.state === 'complete');
     view('go').textContent = unchanged && ['canceled', 'failed', 'interrupted'].includes(job.state)
       ? '继续生成' : '生成整章';
-    let detail = '';
+    let detail = affected ? affected + ' 段台词待更新' : '';
     if (unchanged) {
       const count = ready.size + ' / ' + rows.length + ' 段';
       if (job.state === 'running' && job.currentSegment) detail = '正在生成第 ' + job.currentSegment + ' 段 · ' + count;
@@ -351,16 +363,6 @@ function bindChapter() {
     schedulePoll();
   }
 
-  function setGap(value) {
-    for (const option of gap.querySelectorAll('option[data-custom]')) option.remove();
-    if (![...gap.options].some(option => Number(option.value) === value)) {
-      const option = new Option(value / 1000 + ' 秒', String(value));
-      option.dataset.custom = '';
-      gap.add(option);
-    }
-    gap.value = String(value);
-  }
-
   async function openProject() {
     if (!history.value || !maySwitch()) return;
     const id = history.value;
@@ -375,7 +377,7 @@ function bindChapter() {
       }).join('\n');
       mode.value = meta.mode || 'script';
       title.value = meta.title || '';
-      setGap(spec.pauseMs);
+      gap.value = String(spec.pauseMs);
       view('include-speakers').checked = Boolean(includeSpeakers);
       showProject({ ...spec, source: source.value, mode: mode.value }, record);
       // Voice IDs are stored in the project, while the library may have changed.
@@ -469,7 +471,7 @@ function bindChapter() {
     chapter = job = null;
     source.value = title.value = history.value = '';
     mode.value = 'script';
-    setGap(500);
+    gap.value = '500';
     saved = '';
     review.hidden = true;
     view('include-speakers').checked = false;

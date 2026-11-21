@@ -10,6 +10,7 @@ const idArg = { type: 'object', properties: { id: string }, required: ['id'], ad
 const submitArgs = {
   type: 'object',
   properties: {
+    title: { type: 'string', maxLength: 100 },
     text: { type: 'string', maxLength: 12000 },
     voiceId: string, instruction: string,
     pauseMs: { type: 'integer', enum: [0, 250, 500, 1000] },

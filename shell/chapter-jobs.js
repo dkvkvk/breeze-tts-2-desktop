@@ -230,6 +230,13 @@ function createChapterJobs({ root, chapter, audio, request, modelPath }) {
     if (redoSegment !== null && (!Number.isInteger(redoSegment) || redoSegment < 0 || redoSegment >= spec.segments.length)) {
       throw new JobError(400, 'invalid_segment', '重录段落无效。');
     }
+    const includeSpeakers = input.includeSpeakers === true;
+    if (draft && old.includeSpeakers === includeSpeakers && JSON.stringify(old.chapter) === JSON.stringify(spec)) {
+      const renamed = { ...old, editor, updatedAt: new Date().toISOString() };
+      save(renamed);
+      jobs.set(id, renamed);
+      return describe(renamed);
+    }
     const selectedModel = modelPath();
     if (!draft && old.model && old.model !== selectedModel) {
       throw new JobError(409, 'model_changed', '请切回任务原用模型，或另开一个章节。');
@@ -237,7 +244,7 @@ function createChapterJobs({ root, chapter, audio, request, modelPath }) {
     if (!draft) canQueue();
     const now = new Date().toISOString();
     const record = {
-      ...old, chapter: spec, editor, includeSpeakers: input.includeSpeakers === true,
+      ...old, chapter: spec, editor, includeSpeakers,
       model: old.model || (draft ? '' : selectedModel), redoSegment: draft ? null : redoSegment,
       state: draft ? 'draft' : 'queued', updatedAt: now, queuedAt: now, error: null
     };

@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const { timingSafeEqual } = require('node:crypto');
+const { setTimeout: sleep } = require('node:timers/promises');
 const { createChapterJobs, JobError } = require('./chapter-jobs');
 
 const maxBody = 1024 * 1024;
@@ -46,14 +47,19 @@ function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, fo
       root: path.join(backend.getPaths().dataRoot, 'chapter-jobs'),
       chapter, audio,
       modelPath: () => backend.getPaths().modelPath || '',
-      request: (piece, signal) => {
+      request: async (piece, signal) => {
         const form = new FormData();
         form.append('text', piece.text);
         if (piece.voiceId) form.append('voice_id', piece.voiceId);
         if (piece.instruction) form.append('instruction', piece.instruction);
-        return fetch(infer + '/v1/audio/speech', {
-          method: 'POST', body: form, signal: AbortSignal.any([signal, AbortSignal.timeout(600000)])
-        });
+        const upstreamSignal = AbortSignal.any([signal, AbortSignal.timeout(600000)]);
+        // An aborted HTTP request can leave the engine finishing that turn in the background.
+        while (true) {
+          const response = await fetch(infer + '/v1/audio/speech', { method: 'POST', body: form, signal: upstreamSignal });
+          if (response.status !== 409) return response;
+          await response.body?.cancel();
+          await sleep(500, undefined, { signal: upstreamSignal });
+        }
       }
     });
   }

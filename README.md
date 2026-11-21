@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/icon.png" width="88" alt="声轨工坊图标"></p>
 <h1 align="center">声轨工坊</h1>
-<p align="center"><strong>在 Windows 上完成语音合成、长文配音和字幕导出。</strong></p>
+<p align="center"><strong>Windows 本地多角色配音与字幕制作。</strong></p>
 <p align="center">
   <a href="https://github.com/dkvkvk/breeze-tts-2-desktop/releases"><strong>下载 · Windows x64</strong></a>
   · <a href="#快速开始">快速开始</a>
@@ -41,9 +41,11 @@
 
 ## 章节配音与 Agent 接入
 
-2.4 开发版可把小说一章中的旁白和多位角色制作成同一条音轨。核对台词归属并为每个角色选音色后，即可分段试听、局部重录，或导出整章 WAV 和 SRT。项目和已生成片段可以在下次启动时继续使用。
+把小说一章中的旁白和多位角色制作成同一条音轨。核对台词归属并为每个角色选音色后，即可分段试听、局部重录，或导出整章 WAV 和 SRT。项目和已生成片段可以在下次启动时继续使用。
 
 支持本机 HTTP 和 MCP。Agent 提交的章节能在桌面项目历史里打开，接着完成校对和配音。参见[章节配音操作指南](docs/chapter-workflow.md)和[本机 Agent 接入文档](docs/agent-api.md)。
+
+[试听「雨后的末班车」四角色样音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/chapter-demo.wav) · [原始剧本 TXT](docs/examples/chapter-demo.txt) · [角色字幕 SRT](docs/examples/chapter-demo.srt)
 
 ## 开发与许可
 
