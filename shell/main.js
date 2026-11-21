@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const backend = require('./backend');
 const uiServer = require('./server');
+const PRODUCT_NAME = require('./package.json').productName;
 
 const OFFLINE_SELFTEST = process.argv.includes('--selftest-offline');
 const SELFTEST = OFFLINE_SELFTEST || process.argv.includes('--selftest');
@@ -130,7 +131,7 @@ function buildMenu() {
       submenu: [
         { label: '接口说明', click: () => { showWindow(); win && win.webContents.executeJavaScript("document.getElementById('api-open').click()"); } },
         { label: '版本信息', click: () => dialog.showMessageBox(win, {
-            type: 'info', title: 'Breeze TTS 2', message: 'Breeze TTS 2 ' + backend.VERSION,
+            type: 'info', title: PRODUCT_NAME, message: PRODUCT_NAME + ' ' + backend.VERSION,
             detail: 'Electron ' + process.versions.electron + ' / Chromium ' + process.versions.chrome +
               '\n模型：' + backend.MODEL_FILE + '\n后端端口：' + (paths ? paths.srvPort : '?') +
               '　界面端口：' + uiPort + '\n\n权重仅限研究与非商业用途。'
@@ -144,7 +145,7 @@ function buildTray() {
   const icon = iconPath();
   if (!icon) return;
   tray = new Tray(nativeImage.createFromPath(icon));
-  tray.setToolTip('Breeze TTS 2');
+  tray.setToolTip(PRODUCT_NAME);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示主窗口', click: () => showWindow() },
     { type: 'separator' },
@@ -160,7 +161,7 @@ function createWindow(show) {
   win = new BrowserWindow({
     width: 1280, height: 880, minWidth: 960, minHeight: 640,
     show: false, backgroundColor: '#ffffff',
-    title: 'Breeze TTS 2',
+    title: PRODUCT_NAME,
     icon: iconPath(),
     webPreferences: { contextIsolation: true, nodeIntegration: false, spellcheck: false }
   });
@@ -179,7 +180,7 @@ async function boot() {
   fs.mkdirSync(root, { recursive: true });
   paths = backend.init({ runtime: runtimeDir(), dataRoot: root, srvPort: 18099 });
   migrateLegacy(root);
-  backend.log('Breeze TTS 2 ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
+  backend.log(PRODUCT_NAME + ' ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
   const bound = await uiServer.start({
     uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend,
     hooks: {
@@ -243,6 +244,7 @@ async function selftest() {
         await new Promise(r => setTimeout(r, 200));
       }
       check('首启显示下载和选择本地模型入口', firstRunReady);
+      check('窗口标题显示产品名称', w.webContents.getTitle() === PRODUCT_NAME);
       const longformReady = await w.webContents.executeJavaScript(`(() => {
         const tab = document.querySelector('[data-tab="longform"]');
         if (!tab || typeof BreezeLongform === 'undefined') return false;
@@ -313,7 +315,7 @@ if (SELFTEST) {
       buildTray();
       createWindow(true);
     } catch (e) {
-      dialog.showErrorBox('Breeze TTS 2 启动失败', (e && e.message) || String(e));
+      dialog.showErrorBox(PRODUCT_NAME + ' 启动失败', (e && e.message) || String(e));
       app.quit();
     }
   });

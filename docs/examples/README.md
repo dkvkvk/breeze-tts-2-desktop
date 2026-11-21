@@ -1,0 +1,9 @@
+# 城市漫步配音示例
+
+这是声轨工坊 2.3.0 的非商业功能示例。三段原创旁白由 BreezeBlue 的 Breeze TTS 2 模型（Q4_K 量化档）在本机合成。音频为合成语音，未使用人物参考录音。
+
+- [试听 WAV](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/quickstart.wav)
+- [原稿 TXT](quickstart.txt)
+- [字幕 SRT](quickstart.srt)
+
+在「长文配音」中导入 TXT，填写音色描述「语速从容、吐字清楚的中文旁白」，设置 0.5 秒段间停顿。点击生成后可另行导出 WAV 和 SRT。合成结果随模型和推理条件而变化。示例输出遵循 [BreezeBlue 研究与非商业许可](https://huggingface.co/BreezeBlue/Breeze-TTS-2/blob/main/LICENSE)。

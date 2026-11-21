@@ -1,4 +1,4 @@
-# Breeze TTS 2 开发文档
+# 声轨工坊开发文档
 
 [返回产品首页](../README.md) · [使用手册](guide.md)
 
@@ -41,7 +41,7 @@ npm run selftest:offline
 
 ## Windows 安装包
 
-[GitHub Actions 构建工作流](../.github/workflows/build.yml)下载上游 `v0.1.3` Windows x64 Vulkan 运行时，执行 `npm ci`、`npm test` 和 `npm run dist`，再静默安装并运行首次启动自检。运行日志记录安装包的 SHA-256，产物名为 `BreezeTTS2-Setup`。以 `v` 开头的 Git 标签会触发安装包上传到对应 Release。
+[GitHub Actions 构建工作流](../.github/workflows/build.yml)下载上游 `v0.1.3` Windows x64 Vulkan 运行时，执行 `npm ci`、`npm test` 和 `npm run dist`，再静默安装并运行首次启动自检。产物 `VoiceTrackStudio-Setup` 包含安装包和 `SHA256SUMS.txt`。以 `v` 开头的 Git 标签会触发产物上传到对应 Release。
 
 如需本地构建，将准备好的运行时放入 `shell/runtime/`，在 Windows 下运行 `npm run dist`。优先选择纯 ASCII 字符的源码路径，便于使用 Electron 和 NSIS 工具。
 
