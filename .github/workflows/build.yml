@@ -70,7 +70,7 @@ jobs:
           if ($setup.ExitCode -ne 0 -or -not (Test-Path -LiteralPath 'D:\BreezeTTS2\Breeze TTS 2.exe')) {
             throw 'Legacy installation failed'
           }
-          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze')) {
+          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt')) {
             $fixture = Join-Path 'D:\BreezeTTS2' $relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $fixture) -Force | Out-Null
             Set-Content -LiteralPath $fixture -Value 'upgrade fixture' -Encoding ascii
@@ -94,12 +94,13 @@ jobs:
           if (-not (Test-Path -LiteralPath $app) -or -not (Test-Path -LiteralPath $backend)) {
             throw 'installed app or backend runtime missing'
           }
-          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze')) {
+          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt')) {
             $fixture = Join-Path $installDir $relative
             if ((Get-Content -LiteralPath $fixture -Raw).Trim() -ne 'upgrade fixture') {
               throw "Upgrade changed user data at $relative"
             }
           }
+          if (Test-Path -LiteralPath "$installDir.voicetrack-backup") { throw 'Upgrade backup was not cleared after restoration' }
           $env:BREEZE_DATA = Join-Path $env:RUNNER_TEMP 'breeze-fresh-data'
           $report = Join-Path $env:RUNNER_TEMP 'breeze-selftest.txt'
           $smoke = Start-Process -FilePath $app -ArgumentList '--selftest-offline' -RedirectStandardOutput $report -WindowStyle Hidden -PassThru
