@@ -4,6 +4,8 @@
 
 [试听约 30 秒的四角色 WAV](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/first-chapter/chapter-one.wav) · [导入用 TXT](chapter-one.txt) · [角色字幕 SRT](chapter-one.srt)
 
+[全章角色与配音标注](casting.md)依据小说第一章梳理实际说话人、情绪变化和配音方向。
+
 1. 打开声轨工坊 2.5.0 或更高版本，在「章节配音」中导入 TXT，点击「识别对白并标注」。
 2. 林同学和周老师有明确的说话人提示，会在正文中自动标记。开篇短引和后面的追问需要确认。选中开篇短引后，用「新建音色」创建读牌人。将后面的追问分配给林同学。
 3. 为角色选用音色库里的音色，或在选字弹窗新建音色。示例含旁白、读牌人、林同学和周老师四种合成音色。
