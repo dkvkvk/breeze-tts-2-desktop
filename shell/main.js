@@ -312,9 +312,10 @@ async function selftest() {
       })()`);
       check('桌面无 Agent 令牌时保存草稿并从历史打开', storedChapter === true, String(storedChapter));
       if (process.env.VOICETRACK_SELFTEST_SCREENSHOT) {
+        w.showInactive();
         await w.webContents.executeJavaScript(`(async () => {
           const el = name => document.getElementById(name);
-          el('boot').hidden = true;
+          el('boot').remove();
           el('app').hidden = false;
           el('chapter-new').click();
           el('chapter-title').value = '雨后的末班车';
@@ -333,8 +334,12 @@ async function selftest() {
           dialog.setSelectionRange(0, 9);
           dialog.dispatchEvent(new Event('select'));
           document.querySelector('.chapter-assignment').previousElementSibling.scrollIntoView();
-          await new Promise(resolve => setTimeout(resolve, 150));
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          if (document.querySelector('[data-panel="chapter"]').hidden || !el('chapter-selection-text').textContent) {
+            throw new Error('章节工作台演示页未渲染。');
+          }
         })()`);
+        await new Promise(resolve => setTimeout(resolve, 400));
         const preview = await w.webContents.capturePage();
         if (preview.isEmpty()) throw new Error('章节工作台截图为空。');
         fs.writeFileSync(process.env.VOICETRACK_SELFTEST_SCREENSHOT, preview.toPNG());
