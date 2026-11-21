@@ -94,6 +94,9 @@ jobs:
           if (-not (Test-Path -LiteralPath $app) -or -not (Test-Path -LiteralPath $backend)) {
             throw 'installed app or backend runtime missing'
           }
+          if (-not (Test-Path -LiteralPath (Join-Path $installDir 'resources/agent/voicetrack-mcp.cjs'))) {
+            throw 'installed MCP adapter missing'
+          }
           foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt')) {
             $fixture = Join-Path $installDir $relative
             if ((Get-Content -LiteralPath $fixture -Raw).Trim() -ne 'upgrade fixture') {

@@ -1,0 +1,158 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const { once } = require('node:events');
+const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
+const { test } = require('node:test');
+const { start } = require('../server');
+const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+
+test('authenticated chapter API resumes stored audio on restart and exports role subtitles', { timeout: 10000 }, async t => {
+  const baseDir = path.resolve(os.tmpdir());
+  const dataRoot = fs.mkdtempSync(path.join(baseDir, 'voicetrack-api-test-'));
+  assert.equal(path.dirname(dataRoot), baseDir);
+  assert.match(path.basename(dataRoot), /^voicetrack-api-test-[a-zA-Z0-9]+$/);
+  const clients = [];
+  let failOnce = true;
+  const calls = [];
+  const token = 'test-token-only-0000000000';
+  const upstream = http.createServer(async (req, res) => {
+    try {
+      if (req.url === '/v1/voices') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify([{ id: 'voice-linxia', saved: true }, { id: 'temp', saved: false }]));
+      }
+      const buffers = [];
+      for await (const buffer of req) buffers.push(buffer);
+      const form = await new Request('http://localhost/', {
+        method: 'POST', headers: req.headers, body: Buffer.concat(buffers)
+      }).formData();
+      const text = form.get('text');
+      calls.push([text, form.get('voice_id')]);
+      if (text === '门开了。' && failOnce) {
+        failOnce = false;
+        res.writeHead(503);
+        return res.end('try later');
+      }
+      res.writeHead(200, { 'Content-Type': 'audio/pcm' });
+      return res.end(Buffer.alloc(48000, calls.length));
+    } catch (error) { res.writeHead(500); res.end(error.message); }
+  });
+  t.after(async () => {
+    for (const server of [...clients, upstream]) {
+      server.closeAllConnections();
+      if (server.listening) await new Promise(resolve => server.close(resolve));
+    }
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+
+  async function boot(agentToken) {
+    const { port, server } = await start({
+      port: 32220 + clients.length, srvPort: upstream.address().port, agentToken,
+      uiDir: path.resolve(__dirname, '../../src/ui'),
+      backend: {
+        getPaths: () => ({ dataRoot, modelPath: 'demo.gguf' }),
+        status: () => ({ modelPresent: true, serverReady: true })
+      }
+    });
+    clients.push(server);
+    return {
+      server, port,
+      send: (suffix, options = {}) => fetch('http://127.0.0.1:' + port + '/api/v1' + suffix, {
+        ...options, headers: { Authorization: 'Bearer ' + token, Connection: 'close', ...options.headers }
+      })
+    };
+  }
+
+  async function until(client, id, state) {
+    const limit = Date.now() + 3000;
+    while (Date.now() < limit) {
+      const response = await client.send('/jobs/' + id);
+      const job = await response.json();
+      if (job.state === state) return job;
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+    assert.fail('Job never reached the requested state: ' + state);
+  }
+
+  const disabled = await boot('');
+  assert.equal((await disabled.send('/health')).status, 404);
+  const client = await boot(token);
+  assert.equal((await client.send('/health', { headers: { Authorization: 'Bearer incorrect' } })).status, 401);
+  assert.equal((await client.send('/health', { headers: { Origin: 'https://external.example' } })).status, 403);
+  assert.deepEqual(await (await client.send('/voices')).json(), [{ id: 'voice-linxia' }]);
+
+  const spec = {
+    pauseMs: 250,
+    includeSpeakers: true,
+    roles: [{ id: 'narrator', name: '旁白', voiceId: '', instruction: '' },
+      { id: 'linxia', name: '林夏', voiceId: 'voice-linxia', instruction: '' }],
+    segments: [{ speakerId: 'narrator', text: '下雨了。' }, { speakerId: 'linxia', text: '门开了。' }]
+  };
+  const submit = (payload, key = 'test-chapter') => client.send('/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
+    body: JSON.stringify(payload)
+  });
+  const created = await submit(spec);
+  assert.equal(created.status, 202);
+  const id = (await created.json()).id;
+  assert.equal((await (await submit(spec)).json()).id, id);
+  assert.equal((await submit({ ...spec, pauseMs: 1000 })).status, 409);
+  assert.equal((await submit({ ...spec, segments: [{ text: '未确认', speakerId: null }] }, 'bad-chapter')).status, 400);
+  const failed = await until(client, id, 'failed');
+  assert.equal(failed.completed, 1);
+  assert.equal((await client.send('/jobs/' + id + '/artifacts/chapter.wav')).status, 404);
+
+  const manifestPath = path.join(dataRoot, 'chapter-jobs', id, 'job.json');
+  const interrupted = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  interrupted.state = 'running';
+  fs.writeFileSync(manifestPath, JSON.stringify(interrupted));
+  client.server.closeAllConnections();
+  await new Promise(resolve => client.server.close(resolve));
+  const restarted = await boot(token);
+  assert.equal((await (await restarted.send('/jobs/' + id)).json()).state, 'interrupted');
+  await restarted.send('/jobs/' + id + '/resume', { method: 'POST' });
+  const complete = await until(restarted, id, 'complete');
+  assert.equal(complete.completed, 2);
+  assert.deepEqual(calls, [['下雨了。', null], ['门开了。', 'voice-linxia'], ['门开了。', 'voice-linxia']]);
+
+  const list = await (await restarted.send('/jobs/' + id + '/artifacts')).json();
+  assert.deepEqual(list.map(item => item.name), ['chapter.wav', 'chapter.srt']);
+  const wavRes = await restarted.send('/jobs/' + id + '/artifacts/chapter.wav');
+  assert.equal(wavRes.headers.get('content-type'), 'audio/wav');
+  const wav = Buffer.from(await wavRes.arrayBuffer());
+  assert.equal(wav.readUInt32LE(40), 108000);
+  const srt = await (await restarted.send('/jobs/' + id + '/artifacts/chapter.srt')).text();
+  assert.match(srt, /00:00:01,250 --> 00:00:02,250\r\n林夏：门开了。/);
+  assert.equal((await restarted.send('/jobs/' + id + '/artifacts/private.txt')).status, 404);
+
+  const mcp = new Client({ name: 'chapter-api-test', version: '1.0.0' });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [path.resolve(__dirname, '../agent/voicetrack-mcp.cjs')],
+    env: { VOICETRACK_AGENT_TOKEN: token, VOICETRACK_API_BASE: 'http://127.0.0.1:' + restarted.port + '/' }
+  });
+  t.after(() => mcp.close());
+  await mcp.connect(transport);
+  assert((await mcp.listTools()).tools.some(tool => tool.name === 'breeze_create_job'));
+  const queued = await mcp.callTool({
+    name: 'breeze_create_job', arguments: { text: '由 Agent 提交。', requestId: 'test-mcp' }
+  });
+  assert(!queued.isError, JSON.stringify(queued));
+  const agentId = queued.structuredContent.result.id;
+  await until(restarted, agentId, 'complete');
+  const status = await mcp.callTool({ name: 'breeze_get_job', arguments: { id: agentId } });
+  assert.equal(status.structuredContent.result.state, 'complete');
+  const assets = await mcp.callTool({ name: 'breeze_get_artifacts', arguments: { id: agentId } });
+  const wavUrl = assets.structuredContent.result.find(item => item.name === 'chapter.wav').url;
+  const downloaded = await fetch(wavUrl, { headers: { Authorization: 'Bearer ' + token } });
+  assert.equal(downloaded.status, 200);
+  assert.equal(Buffer.from(await downloaded.arrayBuffer()).toString('ascii', 0, 4), 'RIFF');
+});

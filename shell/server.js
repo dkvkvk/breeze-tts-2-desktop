@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
+const { createAgentApi } = require('./agent-api');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -110,6 +111,7 @@ function serveStatic(res, uiDir, pathname) {
 
 function start(opts) {
   const { uiDir, srvPort, backend, hooks } = opts;
+  const agentApi = createAgentApi({ token: opts.agentToken ?? process.env.VOICETRACK_AGENT_TOKEN, uiDir, backend, srvPort, json });
   let port = opts.port || 18080;
   let server = null;
 
@@ -117,6 +119,7 @@ function start(opts) {
     const url = new URL(req.url, 'http://127.0.0.1');
     const p = url.pathname;
     try {
+      if (p.startsWith('/api/v1/')) return agentApi(req, res, p);
       if (p.startsWith('/api/')) return proxy(req, res, url, srvPort);
       if (p === '/local/status') return json(res, backend.status());
       if (p === '/local/design-presets') {
