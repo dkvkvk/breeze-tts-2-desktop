@@ -115,7 +115,7 @@ function start(opts) {
   let changingModel = false;
   const agentApi = createAgentApi({
     token: opts.agentToken ?? process.env.VOICETRACK_AGENT_TOKEN,
-    desktopToken: opts.desktopToken, uiDir, backend, srvPort, json,
+    desktopToken: opts.desktopToken, secureStorage: opts.secureStorage, uiDir, backend, srvPort, json,
     foregroundBusy: () => foreground > 0 || changingModel
   });
   const synthPaths = new Set(['/api/speech', '/api/audio/speech', '/api/convert', '/api/audio/convert']);

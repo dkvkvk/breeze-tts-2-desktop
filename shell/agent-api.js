@@ -4,6 +4,7 @@ const path = require('node:path');
 const { timingSafeEqual } = require('node:crypto');
 const { setTimeout: sleep } = require('node:timers/promises');
 const { createChapterJobs, JobError } = require('./chapter-jobs');
+const { createChapterAI } = require('./chapter-ai');
 
 const maxBody = 1024 * 1024;
 
@@ -30,7 +31,7 @@ async function jsonBody(req) {
   catch (error) { throw new JobError(400, 'invalid_json', '请求 JSON 无效。'); }
 }
 
-function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, foregroundBusy }) {
+function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, foregroundBusy, secureStorage }) {
   const enabled = typeof token === 'string' && token.length >= 24;
   const tokenBytes = Buffer.from(enabled ? token : '');
   const desktopBytes = Buffer.from(desktopToken || '');
@@ -38,6 +39,7 @@ function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, fo
   let jobs;
   let chapter;
   let audio;
+  let chapterAI;
 
   function init() {
     if (jobs) return;
@@ -64,12 +66,38 @@ function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, fo
     });
   }
 
-  function check(req) {
+  async function listVoices() {
+    try {
+      const upstream = await fetch(infer + '/v1/voices', { signal: AbortSignal.timeout(5000) });
+      if (!upstream.ok) throw new Error('Voice list unavailable');
+      const voices = await upstream.json();
+      return voices.filter(voice => voice.saved);
+    } catch {
+      throw new JobError(503, 'engine_unavailable', '请先加载配音模型，读取可用音色。');
+    }
+  }
+
+  function initAI() {
+    chapterAI ??= createChapterAI({
+      root: backend.getPaths().dataRoot,
+      chapter: require(path.resolve(uiDir, 'chapter.js')),
+      secureStorage,
+      listVoices: async () => (await listVoices()).map(({ id, metadata }) => ({
+        id, name: typeof metadata?.display_name === 'string' ? metadata.display_name : id
+      }))
+    });
+    return chapterAI;
+  }
+
+  function checkOrigin(req) {
     const host = req.headers.host;
     const allowed = ['127.0.0.1:' + req.socket.localPort, 'localhost:' + req.socket.localPort];
     if (!allowed.includes(host) || (req.headers.origin && !allowed.some(entry => req.headers.origin === 'http://' + entry))) {
       throw new JobError(403, 'invalid_origin', '接口仅接受本机请求。');
     }
+  }
+
+  function check(req) {
     const desktop = req.headers['x-voicetrack-desktop'];
     if (desktopBytes.length && typeof desktop === 'string' && equalToken(desktopBytes, desktop)) return 'desktop';
     if (!enabled) throw new JobError(404, 'agent_disabled', '本机 Agent 接口尚未启用。');
@@ -109,18 +137,38 @@ function createAgentApi({ token, desktopToken, uiDir, backend, srvPort, json, fo
 
   async function handle(req, res, url) {
     try {
-      const origin = check(req);
       const pathname = url.pathname;
       const method = req.method;
+      checkOrigin(req);
+      if (pathname === '/api/v1/chapter-review' && ['GET', 'POST'].includes(method)) {
+        const bearer = /^Bearer ([0-9a-f]{64})$/.exec(req.headers.authorization || '')?.[1];
+        if (!bearer) throw new JobError(401, 'invalid_token', '请提供单章授权令牌。');
+        const ai = initAI();
+        if (method === 'GET') return json(res, ai.read(bearer));
+        return json(res, ai.submit(bearer, await jsonBody(req)));
+      }
+      const origin = check(req);
+      if (pathname.startsWith('/api/v1/chapter-ai/') && origin === 'desktop') {
+        const ai = initAI();
+        const action = pathname.slice('/api/v1/chapter-ai/'.length);
+        if (action === 'settings' && method === 'GET') return json(res, ai.settings());
+        if (action === 'settings' && method === 'PUT') return json(res, ai.saveSettings(await jsonBody(req)));
+        if (action === 'suggest' && method === 'POST') {
+          const body = await jsonBody(req);
+          const controller = new AbortController();
+          res.once('close', () => controller.abort());
+          return json(res, await ai.suggest(body, controller.signal));
+        }
+        if (action === 'share' && method === 'POST') return json(res, await ai.share(await jsonBody(req)), 201);
+        if (action === 'share' && method === 'GET') return json(res, ai.review(req.headers['x-voicetrack-review']));
+        if (action === 'share' && method === 'DELETE') return json(res, { revoked: ai.revoke(req.headers['x-voicetrack-review']) });
+      }
       if (pathname === '/api/v1/health' && method === 'GET') {
         const status = backend.status();
         return json(res, { apiVersion: 1, modelPresent: status.modelPresent, serverReady: status.serverReady });
       }
       if (pathname === '/api/v1/voices' && method === 'GET') {
-        const upstream = await fetch(infer + '/v1/voices', { signal: AbortSignal.timeout(5000) });
-        if (!upstream.ok) throw new JobError(503, 'engine_unavailable', '推理服务暂不可用。');
-        const voices = await upstream.json();
-        return json(res, voices.filter(voice => voice.saved).map(({ id }) => ({ id })));
+        return json(res, (await listVoices()).map(({ id }) => ({ id })));
       }
       if (pathname === '/api/v1/jobs' && method === 'POST') {
         init();

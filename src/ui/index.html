@@ -345,6 +345,37 @@
           </div>
           <details class="chapter-voice-settings">
             <summary>章节角色与音色</summary>
+            <div class="chapter-actions">
+              <button id="chapter-voice-defaults" class="btn btn-sm" type="button">一键配音色</button>
+              <button id="chapter-ai-toggle" class="btn btn-sm" type="button" aria-expanded="false" aria-controls="chapter-ai">AI 标定</button>
+            </div>
+            <div id="chapter-ai" class="chapter-ai" hidden>
+              <details id="chapter-ai-settings">
+                <summary>模型接入设置</summary>
+                <div class="chapter-ai-fields">
+                  <label class="field"><span class="label">API 地址</span>
+                    <input id="chapter-ai-url" type="url" placeholder="http://127.0.0.1:11434/v1">
+                  </label>
+                  <label class="field"><span class="label">模型名称</span><input id="chapter-ai-model" type="text"></label>
+                  <label class="field"><span class="label">API 密钥</span>
+                    <input id="chapter-ai-key" type="password" autocomplete="off" placeholder="本机模型可留空">
+                  </label>
+                  <label id="chapter-ai-key-clear-label" hidden><input id="chapter-ai-key-clear" type="checkbox"> 清除已保存的密钥</label>
+                </div>
+              </details>
+              <p id="chapter-ai-destination"></p>
+              <div class="chapter-actions">
+                <button id="chapter-ai-suggest" class="btn btn-sm" type="button">生成建议</button>
+                <button id="chapter-ai-share" class="btn btn-sm btn-ghost" type="button">复制 Agent 任务</button>
+                <button id="chapter-ai-read" class="btn btn-sm btn-ghost" type="button" hidden>读取 Agent 建议</button>
+                <button id="chapter-ai-revoke" class="btn btn-sm btn-ghost" type="button" hidden>结束授权</button>
+              </div>
+              <p id="chapter-ai-status" role="status"></p>
+              <div id="chapter-ai-review" hidden>
+                <ul id="chapter-ai-changes" aria-label="建议的音色和对白标注"></ul>
+                <button id="chapter-ai-apply" class="btn btn-sm" type="button">应用建议</button>
+              </div>
+            </div>
             <div id="chapter-roles"></div>
             <div class="chapter-actions">
               <input id="chapter-new-role" type="text" maxlength="32" placeholder="新角色名" aria-label="新角色名">
