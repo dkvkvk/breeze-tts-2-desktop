@@ -77,7 +77,7 @@ const VoiceTrackChapter = (longform => {
   const beforeQuote = /(?:^|[。！？；;，,]\s*)([\p{Script=Han}]{2,4}?)(?:轻声|低声|小声|大声)?(?:说道|说|问道|问|回答|答道|答|回应|喊道|喊|叫道)\s*[：:，,]\s*$/u;
 
   function namedCue(value) {
-    if (!value || /^(?:[他她它你我咱]|众人|两人|有人|那人|一人|对方|男子|女子|男人|女人|女孩|男孩|小声|轻声|低声)/u.test(value)) return null;
+    if (!value || /^(?:[他她它你我咱]|众人|两人|有人|那人|一人|对方|男子|女子|男人|女人|女孩|男孩|小声|轻声|低声|大声|悄悄|慢慢|突然|接着|大家|人们)/u.test(value)) return null;
     return value;
   }
 

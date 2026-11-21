@@ -73,7 +73,9 @@ function createChapterJobs({ root, chapter, audio, request, modelPath }) {
   function editorData(input) {
     const title = typeof input.title === 'string' ? input.title.trim().slice(0, 100) : '';
     const source = typeof input.source === 'string' ? input.source : '';
-    if (source.length > audio.maxChars) throw new JobError(400, 'invalid_source', '章节原文超过长度限制。');
+    // Older Agent projects may only supply synthesized turns joined by line breaks in the editor.
+    const maxSourceLength = audio.maxChars + (input.ranges === undefined ? 0 : chapter.maxSegments - 1);
+    if (source.length > maxSourceLength) throw new JobError(400, 'invalid_source', '章节原文超过长度限制。');
     const ranges = input.ranges;
     if (ranges !== undefined && !chapter.validRanges(source, input.segments, ranges)) {
       throw new JobError(400, 'invalid_ranges', '正文与音色批注的位置不一致。');

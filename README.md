@@ -10,7 +10,7 @@
 
 声轨工坊是一个开源 Windows 本地配音应用。它将小说章节和剧本制作成多角色音频与字幕，也提供音色设计、参考音色管理和本机 Agent 接口。推理基于 [Breeze TTS 2 模型](https://huggingface.co/BreezeBlue/Breeze-TTS-2)和 [Breeze-TTS-2.cpp](https://github.com/HoppouAI/Breeze-TTS-2.cpp)。
 
-![声轨工坊章节工作台。旁白、林夏、周明和值班员按角色着色，选中的句子可分配给其他角色](docs/chapter-workbench.png)
+![声轨工坊正文批注。角色音色用彩色下划线标记，选中文字可弹出音色工具栏](docs/chapter-workbench.png)
 
 [试听「雨后的末班车」四角色样音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/chapter-demo.wav) · [原始剧本 TXT](docs/examples/chapter-demo.txt) · [角色字幕 SRT](docs/examples/chapter-demo.srt)
 

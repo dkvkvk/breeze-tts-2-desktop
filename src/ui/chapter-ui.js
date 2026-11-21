@@ -247,7 +247,7 @@ function bindChapter() {
       }
     }
     if (event.type !== 'pointerup') return;
-    const mark = event.target.closest('[data-index]');
+    const mark = event.target.closest('.chapter-mark[data-index]');
     if (!mark || !paper.contains(mark)) return;
     const segment = chapter.segments[Number(mark.dataset.index)];
     showTools(segment.start, segment.end, mark);
@@ -302,6 +302,7 @@ function bindChapter() {
       let role = speakers.size === 1 && chapter.roles.find(item =>
         item.id !== VoiceTrackChapter.narratorId && !item.voiceId && speakers.has(item.id));
       if (role) {
+        VoiceTrackChapter.assignRange(chapter, range.start, range.end, role.id);
         role.voiceId = value;
         renderRoles();
       } else role = chapter.roles.find(item => item.voiceId === value);
