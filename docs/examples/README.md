@@ -15,3 +15,7 @@
 - [试听约 34 秒 WAV](chapter-demo.wav)
 - [原稿 TXT](chapter-demo.txt)
 - [配套字幕 SRT](chapter-demo.srt)
+
+## 《斗破苍穹》第一章导读
+
+用开篇短引和原创导读演示正文自动标注、手动确认对白及四角色配音。示例提供可导入的 TXT、试听 WAV 和角色字幕。 [第一章导读示例](first-chapter/README.md)

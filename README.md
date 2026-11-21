@@ -14,6 +14,8 @@
 
 [试听「雨后的末班车」四角色样音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/chapter-demo.wav) · [原始剧本 TXT](docs/examples/chapter-demo.txt) · [角色字幕 SRT](docs/examples/chapter-demo.srt)
 
+[《斗破苍穹》第一章导读示例](docs/examples/first-chapter/README.md)，演示在小说正文中识别对白、分配音色和导出角色字幕。
+
 ## 核心功能
 
 | 功能 | 使用方式 |
