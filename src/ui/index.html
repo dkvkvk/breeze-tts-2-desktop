@@ -20,14 +20,29 @@
       <span class="brand-mark">声轨工坊</span>
       <span class="brand-sub">本地配音</span>
     </div>
-    <nav class="nav" id="nav">
-      <button class="nav-item" data-tab="design"><span class="nav-idx">01</span>音色设计</button>
-      <button class="nav-item" data-tab="clone"><span class="nav-idx">02</span>音色克隆</button>
-      <button class="nav-item" data-tab="direct"><span class="nav-idx">03</span>表演指挥</button>
-      <button class="nav-item" data-tab="convert"><span class="nav-idx">04</span>变声转换</button>
-      <button class="nav-item" data-tab="library"><span class="nav-idx">05</span>音色库</button>
-      <button class="nav-item" data-tab="longform"><span class="nav-idx">06</span>长文配音</button>
-      <button class="nav-item" data-tab="chapter"><span class="nav-idx">07</span>章节配音</button>
+    <nav class="nav" id="nav" aria-label="功能导航">
+      <section class="nav-group" aria-labelledby="nav-production">
+        <h2 id="nav-production" class="nav-heading">配音制作</h2>
+        <div class="nav-group-items">
+          <button class="nav-item" type="button" data-tab="chapter">章节配音</button>
+          <button class="nav-item" type="button" data-tab="longform">长文配音</button>
+          <button class="nav-item" type="button" data-tab="direct">表演指挥</button>
+        </div>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-voices">
+        <h2 id="nav-voices" class="nav-heading">音色管理</h2>
+        <div class="nav-group-items">
+          <button class="nav-item" type="button" data-tab="library">音色库</button>
+          <button class="nav-item" type="button" data-tab="design">音色设计</button>
+          <button class="nav-item" type="button" data-tab="clone">音色克隆</button>
+        </div>
+      </section>
+      <section class="nav-group" aria-labelledby="nav-tools">
+        <h2 id="nav-tools" class="nav-heading">音频工具</h2>
+        <div class="nav-group-items">
+          <button class="nav-item" type="button" data-tab="convert">变声转换</button>
+        </div>
+      </section>
     </nav>
     <div class="side-foot">
       <div class="status" id="status"><i class="dot"></i><span id="statusText">连接中</span></div>
@@ -38,8 +53,8 @@
   <main class="main">
     <header class="top">
       <div class="top-main">
-        <h1 id="pageTitle">音色设计</h1>
-        <p id="pageDesc" class="page-desc">用一段文字描述你想要的声音，模型直接合成。</p>
+        <h1 id="pageTitle">章节配音</h1>
+        <p id="pageDesc" class="page-desc">为旁白和角色分配音色，再按原文顺序生成配音。</p>
       </div>
       <div class="top-actions">
         <button class="btn btn-sm" id="model-open" title="切换或下载模型">模型</button>

@@ -251,6 +251,26 @@ async function selftest() {
       }
       check('首启显示下载和选择本地模型入口', firstRunReady);
       check('窗口标题显示产品名称', w.webContents.getTitle() === PRODUCT_NAME);
+      const groupedNavigation = await w.webContents.executeJavaScript(`(() => {
+        const groups = Array.from(document.querySelectorAll('.nav-group'));
+        if (groups.length !== 3 || document.querySelector('.nav-idx')) return false;
+        const expected = [
+          ['配音制作', 'chapter', 'longform', 'direct'],
+          ['音色管理', 'library', 'design', 'clone'],
+          ['音频工具', 'convert']
+        ];
+        return groups.every((group, index) => {
+          const buttons = [...group.querySelectorAll('button[data-tab]')];
+          const summary = [group.querySelector('h2').textContent, ...buttons.map(button => button.dataset.tab)];
+          return JSON.stringify(summary) === JSON.stringify(expected[index]) && buttons.every(button => {
+            button.click();
+            const visible = [...document.querySelectorAll('[data-panel]')].filter(panel => !panel.hidden);
+            return visible.length === 1 && visible[0].dataset.panel === button.dataset.tab &&
+              document.querySelector('.nav button[aria-current="page"]') === button;
+          });
+        });
+      })()`);
+      check('侧栏三组功能均可打开对应页面', groupedNavigation);
       const longformReady = await w.webContents.executeJavaScript(`(() => {
         const tab = document.querySelector('[data-tab="longform"]');
         if (!tab || typeof BreezeLongform === 'undefined') return false;

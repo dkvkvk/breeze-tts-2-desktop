@@ -307,7 +307,10 @@ var PAGES = {
 };
 function switchTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
-    b.classList.toggle('is-on', b.dataset.tab === name);
+    var active = b.dataset.tab === name;
+    b.classList.toggle('is-on', active);
+    if (active) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
   });
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (p) {
     p.hidden = p.dataset.panel !== name;
@@ -557,7 +560,7 @@ function boot() {
     setStatus('ok', '就绪');
     loadVoices();
     var h = (location.hash || '').replace('#', '');
-    switchTab(PAGES[h] ? h : 'design');
+    switchTab(Object.hasOwn(PAGES, h) ? h : 'chapter');
     if (h === 'api') $('api-open').click();
     if (h === 'model') $('model-open').click();
   }).catch(function (e) {
