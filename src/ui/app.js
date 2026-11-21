@@ -298,7 +298,8 @@ var PAGES = {
   direct: ['表演指挥', '用自然语言指挥语气、语速与情绪。'],
   convert: ['变声转换', '保留原录音的说话节奏，只换掉说话的人。'],
   library: ['音色库', '管理已保存的音色，供其余页面直接调用。'],
-  longform: ['长文配音', '把脚本分段合成，导出一份完整语音和时间对齐的字幕。']
+  longform: ['长文配音', '把脚本分段合成，导出一份完整语音和时间对齐的字幕。'],
+  chapter: ['章节配音', '为旁白和角色分配音色，再按原文顺序生成配音。']
 };
 function switchTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b) {
@@ -565,7 +566,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
   b.onclick = function () { switchTab(b.dataset.tab); };
 });
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
-bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform();
+bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform(); bindChapter();
 bindModel();
 boot();
 
@@ -937,6 +938,7 @@ function mdPoll() {
 
 function bindModel() {
   $('model-open').onclick = function () {
+    if (state.abort) { toast('请先停止合成再切换模型。'); return; }
     $('model-modal').hidden = false;
     mdRefresh().then(function () {
       fetch('/local/status').then(function (r) { return r.json(); }).then(function (s) {

@@ -256,6 +256,18 @@ async function selftest() {
           !document.getElementById('b-go').disabled && document.getElementById('b-plan').textContent.includes('2 段');
       })()`);
       check('长文配音页加载与分段预览', longformReady);
+      const chapterReady = await w.webContents.executeJavaScript(`(() => {
+        const tab = document.querySelector('[data-tab="chapter"]');
+        if (!tab || typeof VoiceTrackChapter === 'undefined') return false;
+        tab.click();
+        const input = document.getElementById('chapter-source');
+        input.value = '旁白：雨声渐远。\\n林夏：门开了。';
+        document.getElementById('chapter-parse').click();
+        return !document.getElementById('chapter-review').hidden &&
+          document.querySelectorAll('#chapter-roles select').length === 2 &&
+          document.querySelectorAll('#chapter-lines li').length === 2;
+      })()`);
+      check('章节配音页加载与角色解析', chapterReady);
     } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();

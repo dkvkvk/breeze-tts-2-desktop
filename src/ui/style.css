@@ -131,6 +131,20 @@ input[type=file]:hover{border-color:var(--fg);color:var(--fg)}
 .longform-list li{padding:9px 0;border-top:1px solid var(--line)}
 .longform-line{overflow-wrap:anywhere}
 .longform-list .longform-note,.longform-list button{margin-inline-start:12px}
+.chapter-editor{border:0;padding:0;margin:0;min-width:0}
+.chapter-review{margin-top:28px}
+.chapter-review h2{font-size:17px;margin:24px 0 10px}
+.chapter-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.chapter-actions input[type=text],.chapter-actions select{width:auto;min-width:130px}
+.chapter-role{display:grid;grid-template-columns:minmax(80px,1fr) minmax(130px,1.2fr) minmax(130px,1.3fr);gap:8px;margin:8px 0}
+.chapter-lines{padding-inline-start:26px;margin:16px 0}
+.chapter-lines li{padding:10px 0;border-top:1px solid var(--line)}
+.chapter-line-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.chapter-line-controls select{width:auto;min-width:124px}
+.chapter-lines textarea{display:block}
+#chapter-status{font-size:13px;overflow-wrap:anywhere}
+#chapter-output audio{margin-top:12px}
+@media (max-width:680px){.chapter-role{grid-template-columns:1fr}}
 .wave{display:flex;align-items:flex-end;gap:1px;height:44px;margin-bottom:14px}
 .wave i{flex:1;background:var(--line-strong);min-height:1px}
 .wave i.is-live{background:var(--fg)}
