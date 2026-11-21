@@ -20,6 +20,7 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   let failOnce = true;
   const calls = [];
   const token = 'test-token-only-0000000000';
+  const desktopToken = 'test-desktop-only-0000000000';
   const upstream = http.createServer(async (req, res) => {
     try {
       if (req.url === '/v1/voices') {
@@ -54,7 +55,7 @@ test('authenticated chapter API resumes stored audio on restart and exports role
 
   async function boot(agentToken) {
     const { port, server } = await start({
-      port: 32220 + clients.length, srvPort: upstream.address().port, agentToken,
+      port: 32220 + clients.length, srvPort: upstream.address().port, agentToken, desktopToken,
       uiDir: path.resolve(__dirname, '../../src/ui'),
       backend: {
         getPaths: () => ({ dataRoot, modelPath: 'demo.gguf' }),
@@ -64,6 +65,9 @@ test('authenticated chapter API resumes stored audio on restart and exports role
     clients.push(server);
     return {
       server, port,
+      desktop: (suffix, options = {}) => fetch('http://127.0.0.1:' + port + '/api/v1' + suffix, {
+        ...options, headers: { 'X-VoiceTrack-Desktop': desktopToken, Connection: 'close', ...options.headers }
+      }),
       send: (suffix, options = {}) => fetch('http://127.0.0.1:' + port + '/api/v1' + suffix, {
         ...options, headers: { Authorization: 'Bearer ' + token, Connection: 'close', ...options.headers }
       })
@@ -84,6 +88,16 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   const disabled = await boot('');
   assert.equal((await disabled.send('/health')).status, 404);
   const client = await boot(token);
+  const draftResponse = await disabled.desktop('/jobs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: '待核对', source: '“你好。”', mode: 'novel', draft: true, pauseMs: 500,
+      roles: [{ id: 'narrator', name: '旁白', voiceId: '', instruction: '' }],
+      segments: [{ speakerId: null, text: '你好。' }]
+    })
+  });
+  assert.equal(draftResponse.status, 201);
+  const draftId = (await draftResponse.json()).id;
   assert.equal((await client.send('/health', { headers: { Authorization: 'Bearer incorrect' } })).status, 401);
   assert.equal((await client.send('/health', { headers: { Origin: 'https://external.example' } })).status, 403);
   assert.deepEqual(await (await client.send('/voices')).json(), [{ id: 'voice-linxia' }]);
@@ -118,7 +132,23 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   await new Promise(resolve => client.server.close(resolve));
   const restarted = await boot(token);
   assert.equal((await (await restarted.send('/jobs/' + id)).json()).state, 'interrupted');
-  await restarted.send('/jobs/' + id + '/resume', { method: 'POST' });
+  const jobRoute = '/jobs/' + id;
+  const readDraft = await (await restarted.desktop('/jobs/' + draftId + '/project')).json();
+  assert.equal(readDraft.job.state, 'draft');
+  assert.equal(readDraft.editor.source, '“你好。”');
+  assert.equal(readDraft.chapter.segments[0].speakerId, null);
+  assert.equal((await restarted.send('/jobs')).status, 404);
+  assert.equal((await restarted.send(jobRoute + '/project')).status, 404);
+  assert.equal((await restarted.desktop('/jobs', { headers: { Origin: 'https://external.example' } })).status, 403);
+  const projects = await (await restarted.desktop('/jobs')).json();
+  assert.equal(projects.find(project => project.id === id).source, 'agent');
+  assert.equal(projects.find(project => project.id === draftId).source, 'desktop');
+  const project = await (await restarted.desktop(jobRoute + '/project')).json();
+  assert.deepEqual(project.chapter.segments, spec.segments);
+  assert.deepEqual(project.job.readySegments, [0]);
+  const partial = Buffer.from(await (await restarted.desktop(jobRoute + '/partial/chapter.wav')).arrayBuffer());
+  assert.equal(partial.readUInt32LE(40), 48000);
+  await restarted.desktop(jobRoute + '/resume', { method: 'POST' });
   const complete = await until(restarted, id, 'complete');
   assert.equal(complete.completed, 2);
   assert.deepEqual(calls, [['下雨了。', null], ['门开了。', 'voice-linxia'], ['门开了。', 'voice-linxia']]);
@@ -132,6 +162,20 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   const srt = await (await restarted.send('/jobs/' + id + '/artifacts/chapter.srt')).text();
   assert.match(srt, /00:00:01,250 --> 00:00:02,250\r\n林夏：门开了。/);
   assert.equal((await restarted.send('/jobs/' + id + '/artifacts/private.txt')).status, 404);
+
+  const changed = { ...spec, title: '同一个章节', segments: [spec.segments[0],
+    { speakerId: 'linxia', text: '门已经开了。' }], redoSegment: 1 };
+  const edited = await restarted.desktop(jobRoute, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changed)
+  });
+  assert.equal(edited.status, 202);
+  assert.equal((await edited.json()).id, id);
+  assert.deepEqual((await until(restarted, id, 'complete')).readySegments, [0, 1]);
+  assert.deepEqual(calls.slice(3), [['门已经开了。', 'voice-linxia']]);
+  const preview = Buffer.from(await (await restarted.desktop(jobRoute + '/preview/0')).arrayBuffer());
+  assert.deepEqual(preview.subarray(44), wav.subarray(44, 48044));
+  const revisedSrt = await (await restarted.send(jobRoute + '/artifacts/chapter.srt')).text();
+  assert.match(revisedSrt, /00:00:01,250 --> 00:00:02,250\r\n林夏：门已经开了。/);
 
   const mcp = new Client({ name: 'chapter-api-test', version: '1.0.0' });
   const transport = new StdioClientTransport({

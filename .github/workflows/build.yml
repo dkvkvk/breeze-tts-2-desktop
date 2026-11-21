@@ -70,7 +70,7 @@ jobs:
           if ($setup.ExitCode -ne 0 -or -not (Test-Path -LiteralPath 'D:\BreezeTTS2\Breeze TTS 2.exe')) {
             throw 'Legacy installation failed'
           }
-          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt')) {
+          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt', 'chapter-jobs/upgrade-check/job.json', 'chapter-jobs/upgrade-check/turn.pcm')) {
             $fixture = Join-Path 'D:\BreezeTTS2' $relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $fixture) -Force | Out-Null
             Set-Content -LiteralPath $fixture -Value 'upgrade fixture' -Encoding ascii
@@ -97,7 +97,7 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $installDir 'resources/agent/voicetrack-mcp.cjs'))) {
             throw 'installed MCP adapter missing'
           }
-          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt')) {
+          foreach ($relative in @('models/upgrade-check.gguf', 'voices/upgrade-check.breeze', 'design-presets.json', 'model-path.txt', 'chapter-jobs/upgrade-check/job.json', 'chapter-jobs/upgrade-check/turn.pcm')) {
             $fixture = Join-Path $installDir $relative
             if ((Get-Content -LiteralPath $fixture -Raw).Trim() -ne 'upgrade fixture') {
               throw "Upgrade changed user data at $relative"

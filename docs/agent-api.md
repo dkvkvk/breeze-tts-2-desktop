@@ -1,6 +1,6 @@
 # 本机 Agent 接入
 
-声轨工坊可以在已加载模型的 Windows 应用中接收长文和多角色配音任务。HTTP 和 MCP 共用同一个后台队列。任务数据与已生成片段保存在安装数据目录的 `chapter-jobs/` 中。
+声轨工坊可以在已加载模型的 Windows 应用中接收长文和多角色配音任务。桌面「章节配音」、HTTP 和 MCP 共用同一个后台队列。在桌面项目历史中可打开 Agent 提交的章节，编辑台词、继续合成和导出。任务数据与已生成片段保存在安装数据目录的 `chapter-jobs/` 中。
 
 ## 启用
 
@@ -11,7 +11,7 @@ $env:VOICETRACK_AGENT_TOKEN = [Convert]::ToHexString([Security.Cryptography.Rand
 & 'D:\BreezeTTS2\VoiceTrackStudio.exe'
 ```
 
-令牌由当前应用进程和获授权的本机客户端使用。Agent 接口默认关闭。服务只监听本机回环地址，客户端使用 `Authorization: Bearer …`。实际端口可在声轨工坊右上方的「API」面板查看。
+令牌由当前应用进程和获授权的本机客户端使用。Agent 接口默认关闭，桌面保存与生成章节无需配置令牌。服务只监听本机回环地址，客户端使用 `Authorization: Bearer …`。实际端口可在声轨工坊右上方的「API」面板查看。
 
 ## HTTP
 
@@ -29,6 +29,7 @@ $env:VOICETRACK_AGENT_TOKEN = [Convert]::ToHexString([Security.Cryptography.Rand
 
 ```json
 {
+  "title": "第三章 走廊",
   "pauseMs": 500,
   "includeSpeakers": true,
   "roles": [

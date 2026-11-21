@@ -111,7 +111,14 @@ function serveStatic(res, uiDir, pathname) {
 
 function start(opts) {
   const { uiDir, srvPort, backend, hooks } = opts;
-  const agentApi = createAgentApi({ token: opts.agentToken ?? process.env.VOICETRACK_AGENT_TOKEN, uiDir, backend, srvPort, json });
+  let foreground = 0;
+  let changingModel = false;
+  const agentApi = createAgentApi({
+    token: opts.agentToken ?? process.env.VOICETRACK_AGENT_TOKEN,
+    desktopToken: opts.desktopToken, uiDir, backend, srvPort, json,
+    foregroundBusy: () => foreground > 0 || changingModel
+  });
+  const synthPaths = new Set(['/api/speech', '/api/audio/speech', '/api/convert', '/api/audio/convert']);
   let port = opts.port || 18080;
   let server = null;
 
@@ -119,7 +126,12 @@ function start(opts) {
     const url = new URL(req.url, 'http://127.0.0.1');
     const p = url.pathname;
     try {
-      if (p.startsWith('/api/v1/')) return agentApi(req, res, p);
+      if (p.startsWith('/api/v1/')) return agentApi.handle(req, res, url);
+      if (synthPaths.has(p) && req.method === 'POST') {
+        if (agentApi.isBusy() || changingModel) return json(res, { error: '请等待章节任务或模型操作结束。' }, 409);
+        foreground++;
+        res.once('close', () => { foreground--; });
+      }
       if (p.startsWith('/api/')) return proxy(req, res, url, srvPort);
       if (p === '/local/status') return json(res, backend.status());
       if (p === '/local/design-presets') {
@@ -166,17 +178,23 @@ function start(opts) {
       });
       if (p === '/local/model-use' && req.method === 'POST') {
         const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
+        if (agentApi.isBusy() || foreground || changingModel) return json(res, { ok: false, error: '请先停止合成。' }, 409);
         return json(res, backend.useModel(body.path || body.file));
       }
       if (p === '/local/download' && req.method === 'POST') {
         const body = JSON.parse((await readBody(req)).toString('utf8') || '{}');
-        return json(res, backend.startDownload(body.id || body.file));
+        return json(res, backend.startDownload(body.id || body.file,
+          () => !agentApi.isBusy() && !foreground && !changingModel));
       }
       if (p === '/local/download-stop' && req.method === 'POST') return json(res, backend.stopDownload());
       if (p === '/local/quit' && req.method === 'POST') { json(res, { ok: true }); setTimeout(() => hooks && hooks.quit && hooks.quit(), 200); return; }
       if (p === '/local/pick-model' && req.method === 'POST') {
-        const ok = hooks && hooks.pickModel ? await hooks.pickModel() : false;
-        return json(res, { ok, status: backend.status() });
+        if (agentApi.isBusy() || foreground || changingModel) return json(res, { ok: false, error: '请先停止合成。' }, 409);
+        changingModel = true;
+        try {
+          const ok = hooks && hooks.pickModel ? await hooks.pickModel() : false;
+          return json(res, { ok, status: backend.status() });
+        } finally { changingModel = false; }
       }
       if (p === '/local/voices-dir' && req.method === 'POST') { hooks && hooks.openVoices && hooks.openVoices(); return json(res, { ok: true }); }
       if (p === '/local/logs-dir' && req.method === 'POST') { hooks && hooks.openLogs && hooks.openLogs(); return json(res, { ok: true }); }

@@ -311,6 +311,7 @@ function switchTab(name) {
   $('pageTitle').textContent = PAGES[name][0];
   $('pageDesc').textContent = PAGES[name][1];
   if (name === 'library') loadVoices();
+  if (name === 'chapter') refreshChapterHistory();
   if (name === 'clone' || name === 'convert') syncCloneMode();
 }
 
@@ -566,7 +567,8 @@ Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (b
   b.onclick = function () { switchTab(b.dataset.tab); };
 });
 $('lib-refresh').onclick = function () { loadVoices().then(function () { toast('已刷新'); }); };
-bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform(); bindChapter();
+bindDesign(); bindClone(); bindDirect(); bindConvert(); bindLongform();
+const refreshChapterHistory = bindChapter();
 bindModel();
 boot();
 

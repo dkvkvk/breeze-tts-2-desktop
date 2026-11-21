@@ -254,7 +254,16 @@
       </div>
     </section>
     <section class="tab" data-panel="chapter" hidden>
+      <div class="chapter-actions">
+        <select id="chapter-history" aria-label="章节项目历史" disabled></select>
+        <button id="chapter-open-history" class="btn btn-sm" type="button" disabled>打开项目</button>
+        <button id="chapter-refresh-history" class="btn btn-sm btn-ghost" type="button">刷新历史</button>
+        <button id="chapter-new" class="btn btn-sm btn-ghost" type="button">新建章节</button>
+      </div>
       <fieldset id="chapter-editor" class="chapter-editor">
+        <label class="field"><span class="label">章节名称</span>
+          <input id="chapter-title" type="text" maxlength="100" placeholder="例如 第三章 车站">
+        </label>
         <div class="grid2">
           <label class="field"><span class="label">章节格式</span>
             <select id="chapter-mode"><option value="script">带角色名的剧本</option><option value="novel">小说原文</option></select>
@@ -295,6 +304,7 @@
             </select>
           </label>
           <button id="chapter-go" class="btn btn-primary" type="button">生成整章</button>
+          <button id="chapter-save" class="btn" type="button">保存项目</button>
         </div>
       </fieldset>
       <p id="chapter-status" role="status"></p>

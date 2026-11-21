@@ -73,7 +73,7 @@ const VoiceTrackChapter = (longform => {
     return chapter;
   }
 
-  function prepare(chapter) {
+  function validate(chapter) {
     if (!Array.isArray(chapter?.roles) || !chapter.roles.length || chapter.roles.length > maxRoles ||
         !Array.isArray(chapter.segments) || !chapter.segments.length || chapter.segments.length > maxSegments ||
         !allowedGaps.includes(chapter.pauseMs)) throw new Error('章节任务格式无效。');
@@ -91,11 +91,21 @@ const VoiceTrackChapter = (longform => {
     }
 
     let size = 0;
+    chapter.segments.forEach((segment, index) => {
+      if (typeof segment?.text !== 'string' || (segment.speakerId !== null && !roles.has(segment.speakerId))) {
+        throw new Error('第 ' + (index + 1) + ' 段台词或角色无效。');
+      }
+      size += segment.text.length;
+      if (size > longform.maxChars) throw new Error('一次最多处理 ' + longform.maxChars + ' 字。');
+    });
+    return roles;
+  }
+
+  function prepare(chapter) {
+    const roles = validate(chapter);
     const pieces = [];
     chapter.segments.forEach((segment, index) => {
-      if (typeof segment?.text !== 'string' || !segment.text.trim()) throw new Error('第 ' + (index + 1) + ' 段台词为空。');
-      size += segment.text.length;
-      if (size > longform.maxChars) throw new Error('一次最多合成 ' + longform.maxChars + ' 字。');
+      if (!segment.text.trim()) throw new Error('第 ' + (index + 1) + ' 段台词为空。');
       const role = roles.get(segment.speakerId);
       if (!role) throw new Error('请确认第 ' + (index + 1) + ' 段的说话人。');
       if (role.id !== narratorId && !role.voiceId) {
@@ -157,7 +167,7 @@ const VoiceTrackChapter = (longform => {
     for (const [key, clip] of replacements) clips.set(key, clip);
   }
 
-  return { narratorId, maxRoles, maxSegments, parse, prepare, roleName, timeline, synthesize };
+  return { narratorId, maxRoles, maxSegments, parse, validate, prepare, roleName, timeline, synthesize };
 })(typeof module === 'object' && module.exports ? require('./longform') : BreezeLongform);
 
 if (typeof module === 'object') module.exports = VoiceTrackChapter;

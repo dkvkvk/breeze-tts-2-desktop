@@ -3,9 +3,11 @@
 const { app, BrowserWindow, Tray, Menu, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { randomBytes } = require('node:crypto');
 const backend = require('./backend');
 const uiServer = require('./server');
 const PRODUCT_NAME = require('./package.json').productName;
+const desktopToken = randomBytes(32).toString('hex');
 
 const OFFLINE_SELFTEST = process.argv.includes('--selftest-offline');
 const SELFTEST = OFFLINE_SELFTEST || process.argv.includes('--selftest');
@@ -167,11 +169,18 @@ function createWindow(show) {
   });
   win.once('ready-to-show', () => { if (show) win.show(); });
   win.on('closed', () => { win = null; });
+  const origin = 'http://127.0.0.1:' + uiPort;
+  const webContentsId = win.webContents.id;
+  win.webContents.session.webRequest.onBeforeSendHeaders({ urls: [origin + '/api/v1/*'] }, (details, callback) => {
+    if (details.webContentsId === webContentsId && details.initiatorOrigin === origin) {
+      callback({ requestHeaders: { ...details.requestHeaders, 'X-VoiceTrack-Desktop': desktopToken } });
+    } else callback({});
+  });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('http://127.0.0.1:' + uiPort)) { e.preventDefault(); shell.openExternal(url); }
+    if (new URL(url).origin !== origin) { e.preventDefault(); shell.openExternal(url); }
   });
-  win.loadURL('http://127.0.0.1:' + uiPort + '/');
+  win.loadURL(origin + '/');
   return win;
 }
 
@@ -182,7 +191,7 @@ async function boot() {
   migrateLegacy(root);
   backend.log(PRODUCT_NAME + ' ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
   const bound = await uiServer.start({
-    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend,
+    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken,
     hooks: {
       quit: () => { quitting = true; app.quit(); },
       openVoices: () => shell.openPath(paths.voicesDir),
@@ -211,7 +220,7 @@ async function selftest() {
     } else {
       check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
     }
-    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, hooks: {} });
+    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken, hooks: {} });
     uiPort = bound.port;
     check('本地服务启动', uiPort > 0, 'port ' + uiPort);
 
@@ -268,6 +277,25 @@ async function selftest() {
           document.querySelectorAll('#chapter-lines li').length === 2;
       })()`);
       check('章节配音页加载与角色解析', chapterReady);
+      const storedChapter = await w.webContents.executeJavaScript(`(async () => {
+        const el = name => document.getElementById('chapter-' + name);
+        el('title').value = '离线章节自测';
+        el('save').click();
+        for (let i = 0; i < 30 && !el('status').textContent.includes('草稿已保存'); i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const selected = el('history').value;
+        if (!selected) return el('status').textContent;
+        el('new').click();
+        el('history').value = selected;
+        el('history').dispatchEvent(new Event('change'));
+        el('open-history').click();
+        for (let i = 0; i < 30 && el('title').value !== '离线章节自测'; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return el('title').value === '离线章节自测' && el('source').value.includes('林夏');
+      })()`);
+      check('桌面无 Agent 令牌时保存草稿并从历史打开', storedChapter === true, String(storedChapter));
     } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();
