@@ -12,8 +12,11 @@ function bindChapter() {
   const gap = view('gap');
   const roleList = view('roles');
   const lineList = view('lines');
-  const assignRole = view('assign-role');
-  const assign = view('assign');
+  const palette = view('palette');
+  const selectionLabel = view('selection');
+  const selectionText = view('selection-text');
+  const roleColors = ['#1f5cb5', '#16704f', '#7444aa', '#ab4825', '#a23567',
+    '#0d6879', '#896013', '#4053a2', '#975035', '#386321', '#844481', '#246572'];
   const aliasSource = view('alias-source');
   const aliasTarget = view('alias-target');
   const pending = view('pending-only');
@@ -28,6 +31,7 @@ function bindChapter() {
   let job;
   let saved = '';
   let rows = [];
+  let range = null;
   let submitting = false;
   let timer;
   let nextRoleNumber;
@@ -48,7 +52,7 @@ function bindChapter() {
     return {
       title: title.value.trim(), source: chapter.source, mode: chapter.mode, pauseMs: Number(gap.value),
       roles: chapter.roles.map(({ id, name, voiceId, instruction }) => ({ id, name, voiceId, instruction })),
-      segments: chapter.segments.map(({ text, speakerId }) => ({ text, speakerId }))
+      segments: chapter.segments.map(({ text, speakerId, slot }) => ({ text, speakerId, slot }))
     };
   }
   const dirty = () => Boolean(chapter) && (JSON.stringify(payload()) !== saved ||
@@ -77,6 +81,29 @@ function bindChapter() {
     return button;
   }
 
+  function colorRole(element, id) {
+    let color = '#8a5509';
+    if (id === VoiceTrackChapter.narratorId) color = '#596171';
+    else if (id) {
+      const index = Array.from(id).reduce((value, char) => (value * 33 + char.charCodeAt(0)) % roleColors.length, 0);
+      color = roleColors[index];
+    }
+    element.style.setProperty('--speaker-color', color);
+  }
+
+  function assignSelection(id) {
+    try {
+      if (range) {
+        chapter.segments = VoiceTrackChapter.splitSelection(chapter.segments, range.index, range.start, range.end, id);
+      } else {
+        for (const index of selected) chapter.segments[index].speakerId = id;
+      }
+      selected.clear();
+      renderLines();
+      refresh();
+    } catch (error) { toast(error.message); }
+  }
+
   function renderRoles() {
     const roles = chapter.roles.map(role => {
       const row = document.createElement('div');
@@ -84,6 +111,7 @@ function bindChapter() {
       const voice = document.createElement('select');
       const instruction = document.createElement('input');
       row.className = 'chapter-role';
+      colorRole(row, role.id);
       name.type = 'text';
       name.value = role.name;
       name.maxLength = 32;
@@ -120,7 +148,13 @@ function bindChapter() {
       return row;
     });
     roleList.replaceChildren(...roles);
-    selectRoles(assignRole, assignRole.value, '批量分配角色');
+    palette.replaceChildren(...chapter.roles.map(role => {
+      const button = action(role.name, () => assignSelection(role.id), '分配给' + role.name);
+      button.className = 'chapter-speaker-button';
+      button.dataset.roleId = role.id;
+      colorRole(button, role.id);
+      return button;
+    }));
     selectRoles(aliasSource, aliasSource.value, '选择别名');
     const narrator = aliasSource.querySelector('option[value="narrator"]');
     if (narrator) narrator.disabled = true;
@@ -129,46 +163,82 @@ function bindChapter() {
   }
 
   function renderLines() {
+    range = null;
     rows = chapter.segments.map((segment, index) => {
       const li = document.createElement('li');
       const controls = document.createElement('div');
       const checked = document.createElement('input');
       const speaker = document.createElement('select');
       const text = document.createElement('textarea');
+      const number = document.createElement('span');
+      number.className = 'chapter-line-number';
+      number.textContent = String(index + 1).padStart(2, '0');
       controls.className = 'chapter-line-controls';
+      li.className = 'chapter-turn';
+      colorRole(li, segment.speakerId);
       checked.type = 'checkbox';
       checked.checked = selected.has(index);
       checked.setAttribute('aria-label', '选中第 ' + (index + 1) + ' 段');
       checked.onchange = () => {
+        range = null;
         if (checked.checked) selected.add(index);
         else selected.delete(index);
         updateSelection();
       };
       selectRoles(speaker, segment.speakerId, '待确认');
+      speaker.className = 'chapter-line-speaker';
       speaker.setAttribute('aria-label', '第 ' + (index + 1) + ' 段说话人');
       speaker.onchange = () => {
         segment.speakerId = speaker.value || null;
+        colorRole(li, segment.speakerId);
         if (pending.checked) renderLines();
         refresh();
       };
       text.rows = 2;
       text.value = segment.text;
       text.setAttribute('aria-label', '第 ' + (index + 1) + ' 段台词');
-      text.oninput = () => { segment.text = text.value; refresh(); };
+      text.oninput = () => {
+        if (range?.index === index) range = null;
+        segment.text = text.value;
+        refresh();
+      };
+      text.onselect = text.onpointerup = () => {
+        const start = text.selectionStart;
+        const end = text.selectionEnd;
+        if (end > start && text.value.slice(start, end).trim()) {
+          range = { index, start, end };
+          selected.clear();
+        } else if (range?.index === index || document.activeElement === text) range = null;
+        updateSelection();
+      };
       const preview = action('试听', () => play(jobPath() + '/preview/' + index), '试听第 ' + (index + 1) + ' 段');
       const rerun = action('重录', () => submit(false, index), '重录第 ' + (index + 1) + ' 段');
       const detail = document.createElement('span');
       detail.className = 'longform-note';
-      controls.append(checked, speaker, preview, rerun, detail);
+      controls.append(checked, number, speaker, detail, preview, rerun);
       li.append(controls, text);
       li.hidden = pending.checked && Boolean(segment.speakerId);
-      return { li, preview, rerun, detail };
+      return { li, checked, preview, rerun, detail };
     });
     lineList.replaceChildren(...rows.map(row => row.li));
   }
 
   function updateSelection() {
-    assign.disabled = !selected.size || !assignRole.value;
+    for (const button of palette.children) button.disabled = !range && !selected.size;
+    rows.forEach(({ li, checked }, index) => {
+      checked.checked = selected.has(index);
+      li.classList.toggle('is-selected', checked.checked || range?.index === index);
+    });
+    selectionText.hidden = !range;
+    if (range) {
+      selectionLabel.textContent = '已选中第 ' + (range.index + 1) + ' 段文字';
+      selectionText.textContent = chapter.segments[range.index].text.slice(range.start, range.end);
+    } else {
+      selectionLabel.textContent = selected.size
+        ? '已勾选 ' + selected.size + ' 段台词'
+        : '选中文字或勾选整段，再点击下方角色。';
+      selectionText.textContent = '';
+    }
   }
 
   function updateAlias() {
@@ -194,6 +264,7 @@ function bindChapter() {
     const ready = new Set(job?.readySegments || []);
     const hasAudio = unchanged && job.hasPrefix;
     view('play').disabled = view('wav').disabled = view('srt').disabled = !hasAudio;
+    view('play').textContent = job?.state === 'complete' ? '试听整章' : '试听已生成片段';
     view('stop').disabled = submitting || !active;
     output.hidden = !active && !hasAudio;
     if (!chapter) {
@@ -210,15 +281,18 @@ function bindChapter() {
     } catch (error) { warning = error.message; }
 
     const prior = job && !unchanged && saved ? JSON.parse(saved) : null;
+    const priorPositions = prior && new Map(prior.segments.map((segment, index) => [segment.slot ?? index, index]));
     let affected = 0;
     rows.forEach(({ preview, rerun, detail }, index) => {
-      const changed = ready.has(index) && prior && turnAudioKey(prior, index) !== turnAudioKey(chapter, index);
+      const previousIndex = priorPositions ? priorPositions.get(chapter.segments[index].slot ?? index) : index;
+      const recorded = ready.has(previousIndex);
+      const changed = recorded && prior && turnAudioKey(prior, previousIndex) !== turnAudioKey(chapter, index);
       if (changed) affected++;
       preview.disabled = !unchanged || !ready.has(index);
       rerun.disabled = locked || Boolean(warning) || !job || job.state === 'draft';
       if (!chapter.segments[index].speakerId) detail.textContent = '待确认';
       else if (changed) detail.textContent = '待更新';
-      else detail.textContent = ready.has(index) ? '已生成' : '待生成';
+      else detail.textContent = recorded ? '已生成' : '待生成';
     });
     view('save').disabled = locked || !dirty() || chapter.source !== source.value || chapter.mode !== mode.value;
     view('go').disabled = locked || Boolean(warning) || (unchanged && job.state === 'complete');
@@ -268,13 +342,6 @@ function bindChapter() {
   source.oninput = mode.onchange = title.oninput = () => refresh();
   gap.onchange = () => refresh();
   pending.onchange = () => { selected.clear(); renderLines(); refresh(); };
-  assignRole.onchange = updateSelection;
-  assign.onclick = () => {
-    for (const index of selected) chapter.segments[index].speakerId = assignRole.value;
-    selected.clear();
-    renderLines();
-    refresh();
-  };
   view('add-role').onclick = () => {
     const input = view('new-role');
     try {

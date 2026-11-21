@@ -106,6 +106,9 @@ jobs:
           if (Test-Path -LiteralPath "$installDir.voicetrack-backup") { throw 'Upgrade backup was not cleared after restoration' }
           $env:BREEZE_DATA = Join-Path $env:RUNNER_TEMP 'breeze-fresh-data'
           $report = Join-Path $env:RUNNER_TEMP 'breeze-selftest.txt'
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $env:VOICETRACK_SELFTEST_SCREENSHOT = Join-Path $env:GITHUB_WORKSPACE 'out-electron/chapter-workbench.png'
+          }
           $smoke = Start-Process -FilePath $app -ArgumentList '--selftest-offline' -RedirectStandardOutput $report -WindowStyle Hidden -PassThru
           if (-not $smoke.WaitForExit(30000)) {
             Stop-Process -InputObject $smoke -Force
@@ -131,6 +134,14 @@ jobs:
           path: |
             out-electron/*.exe
             out-electron/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Upload chapter workbench preview
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chapter-workbench-preview
+          path: out-electron/chapter-workbench.png
           if-no-files-found: error
 
       - name: Attach to release (on tag)

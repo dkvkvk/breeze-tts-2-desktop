@@ -82,3 +82,17 @@ test('preserves complete turns on failure and resumes from the missing turn', as
   }, signal, () => {});
   assert.deepEqual(resumed, [1, 2]);
 });
+
+test('assigns an exact selection without renumbering the stored audio of later turns', () => {
+  const parsed = voiceFixture('旁白：起身。我们出发。灯熄了。\n林夏：等等。\n周明：好。');
+  const original = chapter.prepare(parsed);
+  parsed.segments = chapter.splitSelection(parsed.segments, 0, 3, 8, 'role-1');
+  assert.deepEqual(parsed.segments.map(({ speakerId, text }) => [speakerId, text]), [
+    ['narrator', '起身。'], ['role-1', '我们出发。'], ['narrator', '灯熄了。'],
+    ['role-1', '等等。'], ['role-2', '好。']
+  ]);
+  assert.deepEqual(chapter.prepare(parsed).slice(3).map(piece => piece.key), original.slice(1).map(piece => piece.key));
+  assert.throws(() => chapter.validate({ ...parsed,
+    segments: [{ text: '一', speakerId: 'narrator', slot: 1 }, { text: '二', speakerId: 'narrator' }]
+  }), /编号无效/);
+});

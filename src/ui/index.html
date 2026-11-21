@@ -290,11 +290,14 @@
             <select id="chapter-alias-target" aria-label="保留的角色"></select>
             <button id="chapter-merge-role" class="btn btn-sm" type="button" disabled>合并别名</button>
           </div>
-          <h2>核对台词</h2>
-          <div class="chapter-actions">
-            <select id="chapter-assign-role" aria-label="批量分配角色"></select>
-            <button id="chapter-assign" class="btn btn-sm" type="button" disabled>分配所选台词</button>
-            <label><input id="chapter-pending-only" type="checkbox"> 只看待确认</label>
+          <h2>台词分配</h2>
+          <div class="chapter-assignment">
+            <div class="chapter-assignment-head">
+              <p id="chapter-selection" role="status">选中文字或勾选整段，再点击下方角色。</p>
+              <label><input id="chapter-pending-only" type="checkbox"> 只看待确认</label>
+            </div>
+            <p id="chapter-selection-text" class="chapter-selection-text" hidden></p>
+            <div id="chapter-palette" class="chapter-palette" role="group" aria-label="分配所选台词"></div>
           </div>
           <ol id="chapter-lines" class="chapter-lines"></ol>
           <label class="field"><span class="label">段间停顿</span>

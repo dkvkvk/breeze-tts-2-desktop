@@ -274,6 +274,21 @@ async function selftest() {
           document.querySelectorAll('#chapter-lines li').length === 2;
       })()`);
       check('章节配音页加载与角色解析', chapterReady);
+      const assignedSelection = await w.webContents.executeJavaScript(`(() => {
+        const rows = () => [...document.querySelectorAll('#chapter-lines li')];
+        const first = rows()[0].querySelector('textarea');
+        first.setSelectionRange(0, 2);
+        first.dispatchEvent(new Event('select'));
+        document.querySelector('#chapter-palette [data-role-id="role-1"]').click();
+        const [spoken, narration, original] = rows();
+        if (!original) return false;
+        return spoken.querySelector('textarea').value === '雨声' &&
+          narration.querySelector('textarea').value === '渐远。' &&
+          spoken.querySelector('select').value === 'role-1' && narration.querySelector('select').value === 'narrator' &&
+          spoken.style.getPropertyValue('--speaker-color') === original.style.getPropertyValue('--speaker-color') &&
+          spoken.style.getPropertyValue('--speaker-color') !== narration.style.getPropertyValue('--speaker-color');
+      })()`);
+      check('选中文字分配角色并按角色着色', assignedSelection);
       const storedChapter = await w.webContents.executeJavaScript(`(async () => {
         const el = name => document.getElementById('chapter-' + name);
         el('title').value = '离线章节自测';
@@ -287,12 +302,43 @@ async function selftest() {
         el('history').value = selected;
         el('history').dispatchEvent(new Event('change'));
         el('open-history').click();
-        for (let i = 0; i < 30 && el('title').value !== '离线章节自测'; i++) {
+        for (let i = 0; i < 30 && (el('title').value !== '离线章节自测' || el('editor').disabled); i++) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
-        return el('title').value === '离线章节自测' && el('source').value.includes('林夏');
+        const rows = document.querySelectorAll('#chapter-lines li');
+        return el('title').value === '离线章节自测' && el('source').value.includes('林夏') &&
+          rows.length === 3 && rows[0].querySelector('textarea').value === '雨声' &&
+          rows[0].querySelector('select').value === 'role-1';
       })()`);
       check('桌面无 Agent 令牌时保存草稿并从历史打开', storedChapter === true, String(storedChapter));
+      if (process.env.VOICETRACK_SELFTEST_SCREENSHOT) {
+        await w.webContents.executeJavaScript(`(async () => {
+          const el = name => document.getElementById(name);
+          el('boot').hidden = true;
+          el('app').hidden = false;
+          el('chapter-new').click();
+          el('chapter-title').value = '雨后的末班车';
+          el('chapter-source').value = [
+            '旁白：雨停后，车站只剩下一盏灯。',
+            '林夏：周明，你听见刚才的广播了吗？',
+            '周明：听见了，说去镇上的末班车晚点。',
+            '值班员：两位是等末班车吗？去三号站台吧。',
+            '林夏：我们还有时间买瓶水吗？',
+            '值班员：有。车到了，我用广播喊你们。',
+            '旁白：林夏收好车票，和周明一起走向三号站台。'
+          ].join('\\n');
+          el('chapter-parse').click();
+          const dialog = document.querySelector('#chapter-lines li:nth-child(4) textarea');
+          dialog.focus({ preventScroll: true });
+          dialog.setSelectionRange(0, 9);
+          dialog.dispatchEvent(new Event('select'));
+          document.querySelector('.chapter-assignment').previousElementSibling.scrollIntoView();
+          await new Promise(resolve => setTimeout(resolve, 150));
+        })()`);
+        const preview = await w.webContents.capturePage();
+        if (preview.isEmpty()) throw new Error('章节工作台截图为空。');
+        fs.writeFileSync(process.env.VOICETRACK_SELFTEST_SCREENSHOT, preview.toPNG());
+      }
     } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();

@@ -66,7 +66,7 @@ function createChapterJobs({ root, chapter, audio, request, modelPath }) {
     return {
       pauseMs: input.pauseMs,
       roles: input.roles.map(({ id, name, voiceId, instruction }) => ({ id, name, voiceId, instruction })),
-      segments: input.segments.map(({ text, speakerId }) => ({ text, speakerId }))
+      segments: input.segments.map(({ text, speakerId, slot }) => ({ text, speakerId, slot }))
     };
   }
 

@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
 const { start } = require('../server');
+const { splitSelection } = require('../../src/ui/chapter');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
 
@@ -192,6 +193,18 @@ test('authenticated chapter API resumes stored audio on restart and exports role
   assert.equal(renamed.state, 'complete');
   assert.equal(renamed.title, '改名后的章节');
   assert.deepEqual(renamed.readySegments, [0, 1]);
+
+  const preserved = Buffer.from(await (await restarted.desktop(jobRoute + '/preview/1')).arrayBuffer());
+  const split = splitSelection(changed.segments, 0, 0, 2, 'linxia');
+  const editedSelection = await restarted.desktop(jobRoute, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...spec, segments: split })
+  });
+  assert.equal(editedSelection.status, 202);
+  assert.deepEqual((await until(restarted, id, 'complete')).readySegments, [0, 1, 2]);
+  assert.deepEqual(calls.slice(4), [['下雨', 'voice-linxia'], ['了。', null]]);
+  const shifted = Buffer.from(await (await restarted.desktop(jobRoute + '/preview/2')).arrayBuffer());
+  assert.deepEqual(shifted, preserved);
 
   const mcp = new Client({ name: 'chapter-api-test', version: '1.0.0' });
   const transport = new StdioClientTransport({

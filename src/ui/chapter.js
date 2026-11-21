@@ -73,6 +73,32 @@ const VoiceTrackChapter = (longform => {
     return chapter;
   }
 
+  function splitSelection(segments, index, start, end, speakerId) {
+    const segment = segments[index];
+    if (!segment || !Number.isInteger(start) || !Number.isInteger(end) ||
+        start < 0 || end > segment.text.length || start >= end || !segment.text.slice(start, end).trim()) {
+      throw new Error('请先在台词中选中文字。');
+    }
+    const parts = [
+      { ...segment, text: segment.text.slice(0, start) },
+      { ...segment, text: segment.text.slice(start, end), speakerId },
+      { ...segment, text: segment.text.slice(end) }
+    ].filter(part => part.text.trim());
+    if (segments.length - 1 + parts.length > maxSegments) {
+      throw new Error('章节最多有 ' + maxSegments + ' 段台词，请分为多个项目。');
+    }
+    if (parts.length === 1 && !start && end === segment.text.length) {
+      return segments.map((item, position) => position === index ? parts[0] : item);
+    }
+    // Preserve the keys of recorded turns whose position moves after the split.
+    const slotted = segments.map((item, position) => ({ ...item, slot: item.slot ?? position }));
+    let next = 1 + Math.max(...slotted.map(item => item.slot));
+    slotted.splice(index, 1, ...parts.map((part, position) => ({
+      ...part, slot: position ? next++ : slotted[index].slot
+    })));
+    return slotted;
+  }
+
   function validate(chapter) {
     if (!Array.isArray(chapter?.roles) || !chapter.roles.length || chapter.roles.length > maxRoles ||
         !Array.isArray(chapter.segments) || !chapter.segments.length || chapter.segments.length > maxSegments ||
@@ -91,10 +117,16 @@ const VoiceTrackChapter = (longform => {
     }
 
     let size = 0;
+    const slots = new Set();
     chapter.segments.forEach((segment, index) => {
       if (typeof segment?.text !== 'string' || (segment.speakerId !== null && !roles.has(segment.speakerId))) {
         throw new Error('第 ' + (index + 1) + ' 段台词或角色无效。');
       }
+      const slot = segment.slot ?? index;
+      if (!Number.isSafeInteger(slot) || slot < 0 || slot > 1000000 || slots.has(slot)) {
+        throw new Error('第 ' + (index + 1) + ' 段的编号无效。');
+      }
+      slots.add(slot);
       size += segment.text.length;
       if (size > longform.maxChars) throw new Error('一次最多处理 ' + longform.maxChars + ' 字。');
     });
@@ -112,7 +144,7 @@ const VoiceTrackChapter = (longform => {
         throw new Error('请为「' + role.name + '」选择音色库里的参考音色。');
       }
       for (const [partIndex, text] of longform.splitScript(segment.text).entries()) {
-        const key = JSON.stringify([index, partIndex, text, role.voiceId, role.instruction]);
+        const key = JSON.stringify([segment.slot ?? index, partIndex, text, role.voiceId, role.instruction]);
         pieces.push({ key, text, segmentIndex: index, speakerId: role.id, speakerName: role.name,
           voiceId: role.voiceId, instruction: role.instruction });
         if (pieces.length > maxSegments) throw new Error('合成分段超过 ' + maxSegments + ' 段，请拆成几次生成。');
@@ -167,7 +199,7 @@ const VoiceTrackChapter = (longform => {
     for (const [key, clip] of replacements) clips.set(key, clip);
   }
 
-  return { narratorId, maxRoles, maxSegments, parse, validate, prepare, roleName, timeline, synthesize };
+  return { narratorId, maxRoles, maxSegments, parse, splitSelection, validate, prepare, roleName, timeline, synthesize };
 })(typeof module === 'object' && module.exports ? require('./longform') : BreezeLongform);
 
 if (typeof module === 'object') module.exports = VoiceTrackChapter;
