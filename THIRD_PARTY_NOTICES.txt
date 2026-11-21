@@ -38,6 +38,19 @@ src/ui 为原生 HTML/CSS/JavaScript，未使用任何前端框架或第三方�
 src/launcher、src/setup 为 C# 源码，仅依赖 .NET Framework 4.x 基础类库。
 
 --------------------------------------------------
+5. OpenCode AI SDK
+--------------------------------------------------
+来源：https://github.com/anomalyco/opencode/tree/dev/packages/ai
+许可：MIT（见 shell/OPENCODE_LICENSE.txt）
+用途：兼容 OpenAI Chat Completions 的章节标定模型接入。
+
+--------------------------------------------------
+6. 内置参考音色
+--------------------------------------------------
+由 Breeze TTS 2 合成，遵循上游 BreezeBlue Research and Non-Commercial License。
+模型与许可：https://huggingface.co/BreezeBlue/Breeze-TTS-2
+
+--------------------------------------------------
 免责声明
 --------------------------------------------------
 本项目为非官方封装，与 Breeze TTS 2 上游作者无隶属关系。

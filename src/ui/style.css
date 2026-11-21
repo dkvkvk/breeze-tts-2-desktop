@@ -272,6 +272,13 @@ input[type=file]:hover{border-color:var(--fg);color:var(--fg)}
 .chapter-selection-panel .longform-note { margin-top: 7px; }
 .chapter-voice-settings { margin-bottom: 18px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
 .chapter-voice-settings summary { cursor: pointer; color: #434c5c; font-size: 13px; }
+.chapter-ai { background: var(--bg); border: 1px solid var(--line); padding: 12px; margin-bottom: 14px; }
+.chapter-ai-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 10px; }
+.chapter-ai-fields .field { min-width: 0; margin: 0; }
+.chapter-ai p { margin: 6px 0; font-size: 13px; overflow-wrap: anywhere; }
+#chapter-ai-status:empty { display: none; }
+#chapter-ai-changes { max-height: 240px; overflow: auto; padding-left: 22px; font-size: 13px; }
+#chapter-ai-changes li + li { margin-top: 5px; }
 #chapter-status{font-size:13px;overflow-wrap:anywhere}
 #chapter-output audio{margin-top:12px}
 @media (max-width:680px){.chapter-role{grid-template-columns:1fr}}

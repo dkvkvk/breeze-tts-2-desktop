@@ -1,6 +1,6 @@
 'use strict';
 /* Breeze TTS 2 桌面端主进程：窗口 / 托盘 / 菜单 / 单实例 / 后端生命周期 */
-const { app, BrowserWindow, Tray, Menu, shell, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, shell, dialog, nativeImage, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { randomBytes } = require('node:crypto');
@@ -27,6 +27,19 @@ function runtimeDir() {
 function uiDir() {
   const packed = path.join(__dirname, 'ui');
   return fs.existsSync(packed) ? packed : path.join(__dirname, '..', 'src', 'ui');
+}
+
+function installDefaultVoices() {
+  const source = path.join(DEV ? __dirname : process.resourcesPath, 'presets');
+  const { defaultVoices } = require(path.join(uiDir(), 'chapter.js'));
+  for (const id of defaultVoices) {
+    const file = id + '.breeze';
+    try {
+      fs.copyFileSync(path.join(source, file), path.join(paths.voicesDir, file), fs.constants.COPYFILE_EXCL);
+    } catch (error) {
+      if (error.code !== 'EEXIST') backend.log('无法安装默认音色 ' + id + '：' + error.message);
+    }
+  }
 }
 
 function iconPath() {
@@ -186,9 +199,10 @@ async function boot() {
   fs.mkdirSync(root, { recursive: true });
   paths = backend.init({ runtime: runtimeDir(), dataRoot: root, srvPort: 18099 });
   migrateLegacy(root);
+  installDefaultVoices();
   backend.log(PRODUCT_NAME + ' ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
   const bound = await uiServer.start({
-    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken,
+    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken, secureStorage: safeStorage,
     hooks: {
       quit: () => { quitting = true; app.quit(); },
       openVoices: () => shell.openPath(paths.voicesDir),
@@ -208,16 +222,24 @@ async function selftest() {
   try {
     fs.mkdirSync(dataRoot(), { recursive: true });
     paths = backend.init({ runtime: runtimeDir(), dataRoot: dataRoot(), srvPort: 18099 });
+    installDefaultVoices();
     check('路径解析', !!paths.modelPath, paths.modelPath);
     if (OFFLINE_SELFTEST) {
       check('首启模型路径', !backend.modelPresent() &&
         paths.modelPath === path.join(paths.modelsDir, backend.DEFAULT_FILE), paths.modelPath);
       check('首启数据目录', [paths.modelsDir, paths.voicesDir, paths.logsDir, paths.cacheDir]
         .every(dir => fs.existsSync(dir)));
+      const { defaultVoices } = require(path.join(uiDir(), 'chapter.js'));
+      check('四种默认音色', defaultVoices.every(id => fs.existsSync(path.join(paths.voicesDir, id + '.breeze'))));
+      const { OpenAICompatible } = await import('@opencode/ai/providers/openai-compatible');
+      const { ai } = await import('@opencode/ai');
+      check('OpenCode AI 接入模块', typeof OpenAICompatible.configure === 'function' && typeof ai.generate === 'function');
     } else {
       check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
     }
-    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken, hooks: {} });
+    const bound = await uiServer.start({
+      uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken, secureStorage: safeStorage, hooks: {}
+    });
     uiPort = bound.port;
     check('本地服务启动', uiPort > 0, 'port ' + uiPort);
 
@@ -295,6 +317,17 @@ async function selftest() {
           document.querySelector('#chapter-document .is-unassigned').textContent === '等等。';
       })()`);
       check('正文保留原排版并自动标记对白', chapterReady);
+      const chapterAIControls = await w.webContents.executeJavaScript(`(async () => {
+        const el = name => document.getElementById('chapter-' + name);
+        el('voice-defaults').closest('details').open = true;
+        if (el('voice-defaults').textContent !== '一键配音色' || !el('ai').hidden) return false;
+        await el('ai-toggle').onclick();
+        const settings = await fetch('/api/v1/chapter-ai/settings').then(r => r.json());
+        const ready = !el('ai').hidden && el('ai-settings').open && settings.hasKey === false;
+        await el('ai-toggle').onclick();
+        return ready && el('ai').hidden;
+      })()`);
+      check('一键配音色与 AI 接入设置', chapterAIControls);
       const assignedSelection = await w.webContents.executeJavaScript(`(() => {
         const el = name => document.getElementById('chapter-' + name);
         const before = el('document').textContent;

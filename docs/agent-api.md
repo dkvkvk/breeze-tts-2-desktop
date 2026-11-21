@@ -84,6 +84,24 @@ Invoke-WebRequest "$base/jobs/$($job.id)/artifacts/chapter.wav" -Headers $header
 }
 ```
 
+## 单章标定
+
+桌面用户在「AI 标定」点击「复制 Agent 任务」，获得限这一章、有效 30 分钟的令牌。Agent 建议会暂存到桌面预览，用户确认后生效。用户可随时结束授权。
+
+| HTTP | MCP | 用途 |
+| --- | --- | --- |
+| `GET /api/v1/chapter-review` | `breeze_read_chapter_review` | 读取章节片段、已有角色和可用音色。 |
+| `POST /api/v1/chapter-review` | `breeze_submit_chapter_review` | 提交待确认对白的说话人和角色音色建议。 |
+
+HTTP 使用 `Authorization: Bearer <单章令牌>`。MCP 将单章令牌作为工具的 `token` 参数，可省略合成任务所用的全局环境变量。使用与桌面一致的本机端口。提交格式如下，`index` 使用读取结果里的数字索引。已有角色只填 `id` 和拟使用的 `voiceId`，新角色需附 `name` 且 ID 以 `ai-` 开头。
+
+```json
+{
+  "roles": [{"id": "ai-1", "name": "林夏", "voiceId": "voicetrack-young-woman"}],
+  "marks": [{"index": 3, "speakerId": "ai-1"}]
+}
+```
+
 ## 排查
 
 | 情况 | 处理 |

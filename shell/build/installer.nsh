@@ -83,6 +83,7 @@ Var UpgradeBackup
     !insertmacro VoiceTrackStage "design-presets.json"
     !insertmacro VoiceTrackStage "model-path.txt"
     !insertmacro VoiceTrackStage "chapter-jobs"
+    !insertmacro VoiceTrackStage "ai-provider.json"
     Goto protect_done
 
     protect_failed:
@@ -100,6 +101,7 @@ Var UpgradeBackup
     !insertmacro VoiceTrackRestore "design-presets.json" "$INSTDIR"
     !insertmacro VoiceTrackRestore "model-path.txt" "$INSTDIR"
     !insertmacro VoiceTrackRestore "chapter-jobs" "$INSTDIR"
+    !insertmacro VoiceTrackRestore "ai-provider.json" "$INSTDIR"
     Delete "$UpgradeBackup\.voicetrack-upgrade"
     RMDir "$UpgradeBackup"
   ${EndIf}

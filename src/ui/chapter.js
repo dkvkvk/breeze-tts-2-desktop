@@ -343,7 +343,27 @@ const VoiceTrackChapter = (longform => {
     for (const [key, clip] of replacements) clips.set(key, clip);
   }
 
-  return { narratorId, maxRoles, maxSegments, parse, readDocument, restoreDocument, assignRange, validRanges, splitSelection, validate, prepare, roleName, timeline, synthesize };
+  const narratorVoice = 'voicetrack-narrator';
+  const characterVoices = ['voicetrack-young-woman', 'voicetrack-young-man', 'voicetrack-elder'];
+  const defaultVoices = [narratorVoice, ...characterVoices];
+
+  function fillDefaultVoices(roles, savedIds) {
+    const saved = new Set(savedIds);
+    const choices = characterVoices.filter(id => saved.has(id));
+    let character = 0;
+    let filled = 0;
+    for (const role of roles) {
+      if (role.voiceId) continue;
+      const voice = role.id === narratorId ? narratorVoice : choices[character++ % choices.length];
+      if (!role.voiceId && saved.has(voice)) {
+        role.voiceId = voice;
+        filled++;
+      }
+    }
+    return filled;
+  }
+
+  return { narratorId, narratorVoice, defaultVoices, fillDefaultVoices, maxRoles, maxSegments, parse, readDocument, restoreDocument, assignRange, validRanges, splitSelection, validate, prepare, roleName, timeline, synthesize };
 })(typeof module === 'object' && module.exports ? require('./longform') : BreezeLongform);
 
 if (typeof module === 'object') module.exports = VoiceTrackChapter;
