@@ -1,5 +1,34 @@
 'use strict';
 
+function generatedAudio(player) {
+  let url = '';
+  function clear() {
+    player.pause();
+    player.removeAttribute('src');
+    player.load();
+    player.hidden = true;
+    if (url) URL.revokeObjectURL(url);
+    url = '';
+  }
+  function listen(blob) {
+    clear();
+    url = URL.createObjectURL(blob);
+    player.src = url;
+    player.hidden = false;
+    player.play().catch(() => {});
+  }
+  return { clear, listen };
+}
+
+function downloadBlob(blob, filename) {
+  const anchor = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function bindLongform() {
   const text = $('b-text');
   const file = $('b-file');
@@ -22,7 +51,7 @@ function bindLongform() {
   let job = null;
   let active = false;
   let importing = false;
-  let audioUrl = '';
+  const { clear: clearPlayer, listen } = generatedAudio(player);
   let name = 'breeze-长文配音';
 
   function inputs() {
@@ -44,32 +73,6 @@ function bindLongform() {
     go.disabled = active || importing || !pieces.length;
     saveDraft.disabled = importing || !pieces.length;
     go.textContent = canResume() ? '继续生成' : job ? '重新生成' : '开始生成';
-  }
-
-  function clearPlayer() {
-    player.pause();
-    player.removeAttribute('src');
-    player.load();
-    player.hidden = true;
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    audioUrl = '';
-  }
-
-  function listen(blob) {
-    clearPlayer();
-    audioUrl = URL.createObjectURL(blob);
-    player.src = audioUrl;
-    player.hidden = false;
-    player.play().catch(() => {});
-  }
-
-  function download(blob, filename) {
-    const anchor = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function makeRows() {
@@ -156,7 +159,7 @@ function bindLongform() {
   saveDraft.onclick = () => {
     try {
       const draft = BreezeLongform.encodeDraft(inputs());
-      download(new Blob([draft], { type: 'application/json' }), name + '.breeze-project.json');
+      downloadBlob(new Blob([draft], { type: 'application/json' }), name + '.breeze-project.json');
     } catch (error) {
       toast(error.message);
     }
@@ -164,8 +167,8 @@ function bindLongform() {
 
   stop.onclick = () => { if (active) stopStream(); };
   playAll.onclick = () => listen(BreezeLongform.wav(job.completed, job.gapSamples));
-  wave.onclick = () => download(BreezeLongform.wav(job.completed, job.gapSamples), job.name + '.wav');
-  subtitles.onclick = () => download(new Blob([BreezeLongform.srt(job.completed)], { type: 'text/plain;charset=utf-8' }), job.name + '.srt');
+  wave.onclick = () => downloadBlob(BreezeLongform.wav(job.completed, job.gapSamples), job.name + '.wav');
+  subtitles.onclick = () => downloadBlob(new Blob([BreezeLongform.srt(job.completed)], { type: 'text/plain;charset=utf-8' }), job.name + '.srt');
 
   go.onclick = async () => {
     if (state.abort) { toast('已有合成任务，完成或停止后再生成。'); return; }

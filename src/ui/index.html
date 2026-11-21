@@ -27,6 +27,7 @@
       <button class="nav-item" data-tab="convert"><span class="nav-idx">04</span>变声转换</button>
       <button class="nav-item" data-tab="library"><span class="nav-idx">05</span>音色库</button>
       <button class="nav-item" data-tab="longform"><span class="nav-idx">06</span>长文配音</button>
+      <button class="nav-item" data-tab="chapter"><span class="nav-idx">07</span>章节配音</button>
     </nav>
     <div class="side-foot">
       <div class="status" id="status"><i class="dot"></i><span id="statusText">连接中</span></div>
@@ -252,6 +253,75 @@
         </div>
       </div>
     </section>
+    <section class="tab" data-panel="chapter" hidden>
+      <div class="chapter-actions">
+        <select id="chapter-history" aria-label="章节项目历史" disabled></select>
+        <button id="chapter-open-history" class="btn btn-sm" type="button" disabled>打开项目</button>
+        <button id="chapter-refresh-history" class="btn btn-sm btn-ghost" type="button">刷新历史</button>
+        <button id="chapter-new" class="btn btn-sm btn-ghost" type="button">新建章节</button>
+      </div>
+      <fieldset id="chapter-editor" class="chapter-editor">
+        <label class="field"><span class="label">章节名称</span>
+          <input id="chapter-title" type="text" maxlength="100" placeholder="例如 第三章 车站">
+        </label>
+        <div class="grid2">
+          <label class="field"><span class="label">章节格式</span>
+            <select id="chapter-mode"><option value="script">带角色名的剧本</option><option value="novel">小说原文</option></select>
+          </label>
+          <label class="field"><span class="label">导入章节 <em>UTF-8 TXT</em></span>
+            <input id="chapter-file" type="file" accept=".txt,text/plain">
+          </label>
+        </div>
+        <label class="field"><span class="label">章节原文</span>
+          <textarea id="chapter-source" rows="6" placeholder="旁白：走廊里安静下来。&#10;林夏：你终于来了。&#10;周明：路上堵车。"></textarea>
+        </label>
+        <button id="chapter-parse" class="btn btn-primary" type="button">解析章节</button>
+        <div id="chapter-review" class="chapter-review" hidden>
+          <h2>角色和音色</h2>
+          <p class="longform-note">为每位角色选一个已保存的参考音色。旁白可使用模型默认音色。</p>
+          <div id="chapter-roles"></div>
+          <div class="chapter-actions">
+            <input id="chapter-new-role" type="text" maxlength="32" placeholder="新角色名" aria-label="新角色名">
+            <button id="chapter-add-role" class="btn btn-sm" type="button">添加角色</button>
+            <button id="chapter-refresh-voices" class="btn btn-sm btn-ghost" type="button">刷新音色库</button>
+          </div>
+          <div class="chapter-actions">
+            <select id="chapter-alias-source" aria-label="待合并的别名"></select>
+            <select id="chapter-alias-target" aria-label="保留的角色"></select>
+            <button id="chapter-merge-role" class="btn btn-sm" type="button" disabled>合并别名</button>
+          </div>
+          <h2>台词分配</h2>
+          <div class="chapter-assignment">
+            <div class="chapter-assignment-head">
+              <p id="chapter-selection" role="status">选中文字或勾选整段，再点击下方角色。</p>
+              <label><input id="chapter-pending-only" type="checkbox"> 只看待确认</label>
+            </div>
+            <p id="chapter-selection-text" class="chapter-selection-text" hidden></p>
+            <div id="chapter-palette" class="chapter-palette" role="group" aria-label="分配所选台词"></div>
+          </div>
+          <ol id="chapter-lines" class="chapter-lines"></ol>
+          <label class="field"><span class="label">段间停顿</span>
+            <select id="chapter-gap">
+              <option value="0">无</option><option value="250">0.25 秒</option>
+              <option value="500" selected>0.5 秒</option><option value="1000">1 秒</option>
+            </select>
+          </label>
+          <button id="chapter-go" class="btn btn-primary" type="button">生成整章</button>
+          <button id="chapter-save" class="btn" type="button">保存项目</button>
+        </div>
+      </fieldset>
+      <p id="chapter-status" role="status"></p>
+      <div id="chapter-output" class="card longform-result" hidden>
+        <div class="btn-row">
+          <button id="chapter-stop" class="btn btn-sm btn-ghost" type="button" disabled>停止生成</button>
+          <button id="chapter-play" class="btn btn-sm" type="button" disabled>试听连续片段</button>
+          <button id="chapter-wav" class="btn btn-sm" type="button" disabled>导出 WAV</button>
+          <button id="chapter-srt" class="btn btn-sm" type="button" disabled>导出 SRT</button>
+          <label><input id="chapter-include-speakers" type="checkbox"> 字幕显示角色名</label>
+        </div>
+        <audio id="chapter-player" controls hidden></audio>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -327,7 +397,9 @@
 <div id="toast" class="toast" hidden></div>
 <script src="audio.js"></script>
 <script src="longform.js"></script>
+<script src="chapter.js"></script>
 <script src="longform-ui.js"></script>
+<script src="chapter-ui.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/icon.png" width="88" alt="声轨工坊图标"></p>
 <h1 align="center">声轨工坊</h1>
-<p align="center"><strong>在 Windows 上完成语音合成、长文配音和字幕导出。</strong></p>
+<p align="center"><strong>Windows 本地多角色配音与字幕制作。</strong></p>
 <p align="center">
   <a href="https://github.com/dkvkvk/breeze-tts-2-desktop/releases"><strong>下载 · Windows x64</strong></a>
   · <a href="#快速开始">快速开始</a>
@@ -8,16 +8,17 @@
   · <a href="docs/development.md">开发文档</a>
 </p>
 
-声轨工坊是一个开源 Windows 本地配音应用。它提供中文操作界面，可以用文字设计声音、管理参考音色，也可以把一篇脚本制作成带字幕的旁白。推理基于 [Breeze TTS 2 模型](https://huggingface.co/BreezeBlue/Breeze-TTS-2)和 [Breeze-TTS-2.cpp](https://github.com/HoppouAI/Breeze-TTS-2.cpp)。
+声轨工坊是一个开源 Windows 本地配音应用。它将小说章节和剧本制作成多角色音频与字幕，也提供音色设计、参考音色管理和本机 Agent 接口。推理基于 [Breeze TTS 2 模型](https://huggingface.co/BreezeBlue/Breeze-TTS-2)和 [Breeze-TTS-2.cpp](https://github.com/HoppouAI/Breeze-TTS-2.cpp)。
 
-![声轨工坊的长文配音界面，展示分段进度及 WAV 和 SRT 导出入口](docs/longform-workspace.png)
+![声轨工坊章节工作台。旁白、林夏、周明和值班员按角色着色，选中的句子可分配给其他角色](docs/chapter-workbench.png)
 
-[试听约 21 秒的示例 WAV](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/quickstart.wav) · [原始脚本 TXT](docs/examples/quickstart.txt) · [配套字幕 SRT](docs/examples/quickstart.srt) · [示例说明](docs/examples/README.md)
+[试听「雨后的末班车」四角色样音](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/chapter-demo.wav) · [原始剧本 TXT](docs/examples/chapter-demo.txt) · [角色字幕 SRT](docs/examples/chapter-demo.srt)
 
 ## 核心功能
 
 | 功能 | 使用方式 |
 | --- | --- |
+| **多角色章节配音** | 给台词按角色着色，选中文字分配说话人。项目可重开续跑，支持局部重录。 |
 | **音色设计** | 用自然语言描述想要的声音。常用描述可以保存为本地预设，重启后继续使用。 |
 | **音色克隆与表演指挥** | 从获授权的参考录音建立音色，再用文字调整语气、情绪和语速。 |
 | **长文配音** | 粘贴脚本或导入 UTF-8 TXT，自动分段，设置段间停顿，逐段或整篇试听。当前任务停止或失败后可继续生成。 |
@@ -33,11 +34,19 @@
 
 ## 长文配音流程
 
+[试听约 21 秒的示例 WAV](https://raw.githubusercontent.com/dkvkvk/breeze-tts-2-desktop/main/docs/examples/quickstart.wav) · [原始脚本 TXT](docs/examples/quickstart.txt) · [配套字幕 SRT](docs/examples/quickstart.srt) · [示例说明](docs/examples/README.md)
+
 1. 打开「长文配音」，导入 TXT 或粘贴脚本。换行会开启新段，过长的段落会按附近的标点或空格拆分。
 2. 选择参考音色或填写音色描述，设置段间停顿。生成过程中可以停止，继续时会保留已完成的片段。
 3. 逐段试听后，导出 WAV 和 SRT。需要下次接着编辑脚本时，另存一份 JSON 配音草稿。
 
 草稿保存脚本、音色设置与段间停顿。生成的音频和字幕需单独导出。更多关于模型切换、批量导入音色和数据位置的说明见[使用手册](docs/guide.md)。
+
+## 章节配音与 Agent 接入
+
+选中一句或几句话，点击角色即可分配。每个角色在章节里以自己的颜色显示，旁白和对话按原顺序排布。为角色选好音色后，即可分段试听、局部重录，或导出整章 WAV 和 SRT。项目和已生成片段可以在下次启动时继续使用。
+
+支持本机 HTTP 和 MCP。Agent 提交的章节能在桌面项目历史里打开，接着完成校对和配音。参见[章节配音操作指南](docs/chapter-workflow.md)和[本机 Agent 接入文档](docs/agent-api.md)。
 
 ## 开发与许可
 

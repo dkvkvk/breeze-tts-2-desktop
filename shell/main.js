@@ -3,9 +3,11 @@
 const { app, BrowserWindow, Tray, Menu, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { randomBytes } = require('node:crypto');
 const backend = require('./backend');
 const uiServer = require('./server');
 const PRODUCT_NAME = require('./package.json').productName;
+const desktopToken = randomBytes(32).toString('hex');
 
 const OFFLINE_SELFTEST = process.argv.includes('--selftest-offline');
 const SELFTEST = OFFLINE_SELFTEST || process.argv.includes('--selftest');
@@ -75,10 +77,7 @@ async function pickModel() {
     filters: [{ name: 'GGUF 模型', extensions: ['gguf'] }]
   });
   if (r.canceled || !r.filePaths.length) return false;
-  backend.stop();
-  const ok = backend.setModelPath(r.filePaths[0]);
-  if (ok) backend.start();
-  return ok;
+  return backend.useModel(r.filePaths[0]).ok;
 }
 
 /* Chromium 的缓存/GPUCache 也改到安装目录，别写 C 盘 */
@@ -167,11 +166,18 @@ function createWindow(show) {
   });
   win.once('ready-to-show', () => { if (show) win.show(); });
   win.on('closed', () => { win = null; });
+  const origin = 'http://127.0.0.1:' + uiPort;
+  const webContentsId = win.webContents.id;
+  win.webContents.session.webRequest.onBeforeSendHeaders({ urls: [origin + '/api/v1/*'] }, (details, callback) => {
+    if (details.webContentsId === webContentsId && details.initiatorOrigin === origin) {
+      callback({ requestHeaders: { ...details.requestHeaders, 'X-VoiceTrack-Desktop': desktopToken } });
+    } else callback({});
+  });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('http://127.0.0.1:' + uiPort)) { e.preventDefault(); shell.openExternal(url); }
+    if (new URL(url).origin !== origin) { e.preventDefault(); shell.openExternal(url); }
   });
-  win.loadURL('http://127.0.0.1:' + uiPort + '/');
+  win.loadURL(origin + '/');
   return win;
 }
 
@@ -182,7 +188,7 @@ async function boot() {
   migrateLegacy(root);
   backend.log(PRODUCT_NAME + ' ' + backend.VERSION + ' starting, data=' + root + ', runtime=' + paths.runtime);
   const bound = await uiServer.start({
-    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend,
+    uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken,
     hooks: {
       quit: () => { quitting = true; app.quit(); },
       openVoices: () => shell.openPath(paths.voicesDir),
@@ -211,7 +217,7 @@ async function selftest() {
     } else {
       check('模型存在', backend.modelPresent(), fs.existsSync(paths.modelPath) ? (fs.statSync(paths.modelPath).size / 1e9).toFixed(2) + ' GB' : 'missing');
     }
-    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, hooks: {} });
+    const bound = await uiServer.start({ uiDir: uiDir(), port: 18080, srvPort: paths.srvPort, backend, desktopToken, hooks: {} });
     uiPort = bound.port;
     check('本地服务启动', uiPort > 0, 'port ' + uiPort);
 
@@ -256,6 +262,88 @@ async function selftest() {
           !document.getElementById('b-go').disabled && document.getElementById('b-plan').textContent.includes('2 段');
       })()`);
       check('长文配音页加载与分段预览', longformReady);
+      const chapterReady = await w.webContents.executeJavaScript(`(() => {
+        const tab = document.querySelector('[data-tab="chapter"]');
+        if (!tab || typeof VoiceTrackChapter === 'undefined') return false;
+        tab.click();
+        const input = document.getElementById('chapter-source');
+        input.value = '旁白：雨声渐远。\\n林夏：门开了。';
+        document.getElementById('chapter-parse').click();
+        return !document.getElementById('chapter-review').hidden &&
+          document.querySelectorAll('#chapter-roles select').length === 2 &&
+          document.querySelectorAll('#chapter-lines li').length === 2;
+      })()`);
+      check('章节配音页加载与角色解析', chapterReady);
+      const assignedSelection = await w.webContents.executeJavaScript(`(() => {
+        const rows = () => [...document.querySelectorAll('#chapter-lines li')];
+        const first = rows()[0].querySelector('textarea');
+        first.setSelectionRange(0, 2);
+        first.dispatchEvent(new Event('select'));
+        document.querySelector('#chapter-palette [data-role-id="role-1"]').click();
+        const [spoken, narration, original] = rows();
+        if (!original) return false;
+        return spoken.querySelector('textarea').value === '雨声' &&
+          narration.querySelector('textarea').value === '渐远。' &&
+          spoken.querySelector('select').value === 'role-1' && narration.querySelector('select').value === 'narrator' &&
+          spoken.style.getPropertyValue('--speaker-color') === original.style.getPropertyValue('--speaker-color') &&
+          spoken.style.getPropertyValue('--speaker-color') !== narration.style.getPropertyValue('--speaker-color');
+      })()`);
+      check('选中文字分配角色并按角色着色', assignedSelection);
+      const storedChapter = await w.webContents.executeJavaScript(`(async () => {
+        const el = name => document.getElementById('chapter-' + name);
+        el('title').value = '离线章节自测';
+        el('save').click();
+        for (let i = 0; i < 30 && !el('status').textContent.includes('草稿已保存'); i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const selected = el('history').value;
+        if (!selected) return el('status').textContent;
+        el('new').click();
+        el('history').value = selected;
+        el('history').dispatchEvent(new Event('change'));
+        el('open-history').click();
+        for (let i = 0; i < 30 && (el('title').value !== '离线章节自测' || el('editor').disabled); i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const rows = document.querySelectorAll('#chapter-lines li');
+        return el('title').value === '离线章节自测' && el('source').value.includes('林夏') &&
+          rows.length === 3 && rows[0].querySelector('textarea').value === '雨声' &&
+          rows[0].querySelector('select').value === 'role-1';
+      })()`);
+      check('桌面无 Agent 令牌时保存草稿并从历史打开', storedChapter === true, String(storedChapter));
+      if (process.env.VOICETRACK_SELFTEST_SCREENSHOT) {
+        w.showInactive();
+        await w.webContents.executeJavaScript(`(async () => {
+          const el = name => document.getElementById(name);
+          el('boot').remove();
+          el('app').hidden = false;
+          el('chapter-new').click();
+          el('chapter-title').value = '雨后的末班车';
+          el('chapter-source').value = [
+            '旁白：雨停后，车站只剩下一盏灯。',
+            '林夏：周明，你听见刚才的广播了吗？',
+            '周明：听见了，说去镇上的末班车晚点。',
+            '值班员：两位是等末班车吗？去三号站台吧。',
+            '林夏：我们还有时间买瓶水吗？',
+            '值班员：有。车到了，我用广播喊你们。',
+            '旁白：林夏收好车票，和周明一起走向三号站台。'
+          ].join('\\n');
+          el('chapter-parse').click();
+          const dialog = document.querySelector('#chapter-lines li:nth-child(4) textarea');
+          dialog.focus({ preventScroll: true });
+          dialog.setSelectionRange(0, 9);
+          dialog.dispatchEvent(new Event('select'));
+          document.querySelector('.chapter-assignment').previousElementSibling.scrollIntoView();
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          if (document.querySelector('[data-panel="chapter"]').hidden || !el('chapter-selection-text').textContent) {
+            throw new Error('章节工作台演示页未渲染。');
+          }
+        })()`);
+        await new Promise(resolve => setTimeout(resolve, 400));
+        const preview = await w.webContents.capturePage();
+        if (preview.isEmpty()) throw new Error('章节工作台截图为空。');
+        fs.writeFileSync(process.env.VOICETRACK_SELFTEST_SCREENSHOT, preview.toPNG());
+      }
     } else if (backend.modelPresent()) {
       backend.start();
       const t0 = Date.now();

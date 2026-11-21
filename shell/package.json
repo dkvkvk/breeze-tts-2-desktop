@@ -1,22 +1,25 @@
 {
   "name": "breeze-tts-2-desktop",
   "productName": "声轨工坊",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "声轨工坊是基于 Breeze TTS 2 模型的 Windows 本地配音应用",
   "main": "main.js",
   "author": "dkvkvk",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "npm run build:mcp && node --test test/*.test.js",
+    "build:mcp": "node build-mcp.js",
     "sync-ui": "node sync-ui.js",
     "start": "npm run sync-ui && electron .",
     "selftest": "npm run sync-ui && electron . --selftest",
     "selftest:offline": "npm run sync-ui && electron . --selftest-offline",
-    "dist": "npm run sync-ui && electron-builder --win nsis"
+    "dist": "npm run build:mcp && npm run sync-ui && electron-builder --win nsis"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "electron": "^45.4.1",
-    "electron-builder": "^26.18.1"
+    "electron-builder": "^26.18.1",
+    "esbuild": "0.28.2"
   },
   "build": {
     "appId": "ai.breezeblue.breeze-tts-2",
@@ -28,6 +31,8 @@
       "main.js",
       "backend.js",
       "server.js",
+      "agent-api.js",
+      "chapter-jobs.js",
       "sync-ui.js",
       "ui/**/*",
       "assets/**/*"
@@ -38,6 +43,14 @@
         "to": "runtime",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "agent",
+        "to": "agent",
+        "filter": [
+          "voicetrack-mcp.cjs",
+          "THIRD_PARTY_LICENSES.txt"
         ]
       }
     ],

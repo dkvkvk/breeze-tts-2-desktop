@@ -150,7 +150,7 @@ const BreezeLongform = (() => {
     }).join('\r\n\r\n') + '\r\n';
   }
 
-  return { sampleRate, maxChars, maxDraftBytes, splitScript, createJob, runJob, wav, srt, encodeDraft, decodeDraft };
+  return { sampleRate, maxChars, maxDraftBytes, maxSamples, splitScript, createJob, runJob, wav, srt, readPcm, encodeDraft, decodeDraft };
 })();
 
 if (typeof module === 'object') module.exports = BreezeLongform;

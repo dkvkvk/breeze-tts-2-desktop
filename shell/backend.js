@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const VERSION = '2.3.0';
+const VERSION = '2.4.0';
 const DEFAULT_FILE = 'breeze-tts-2-q4_k.gguf';
 
 /* 官方 HoppouAI/Breeze-TTS-2.cpp 的 7 个量化档，字节数取自 HF 文件树 */
@@ -240,7 +240,7 @@ function stop(quiet) {
 }
 
 /* ---------------- 下载：多源 + 慢速自动切换 + 断点续传 ---------------- */
-function startDownload(fileOrId) {
+function startDownload(fileOrId, canActivate = () => true) {
   if (state.downloading) return { ok: false, error: '已有下载在进行' };
   const item = CATALOG.find(c => c.id === fileOrId || c.file === fileOrId)
     || CATALOG.find(c => c.file === DEFAULT_FILE);
@@ -256,7 +256,7 @@ function startDownload(fileOrId) {
   state.downloading = true;
   dlStopFlag = false;
 
-  downloadWorker(item).then(() => { state.downloading = false; state.dlSpeed = 0; })
+  downloadWorker(item, canActivate).then(() => { state.downloading = false; state.dlSpeed = 0; })
     .catch(e => {
       state.dlError = (e && e.message) || String(e);
       state.downloading = false;
@@ -274,7 +274,7 @@ function stopDownload() {
   return { ok: true };
 }
 
-async function downloadWorker(item) {
+async function downloadWorker(item, canActivate) {
   const dest = path.join(paths.modelsDir, item.file);
   const part = dest + '.part';
   let lastErr = null;
@@ -293,7 +293,7 @@ async function downloadWorker(item) {
       state.dlBytes = sizeOf(dest);
       state.dlSpeed = 0;
       /* 下完就切过去，省得用户再点一次 */
-      useModel(dest);
+      if (canActivate()) useModel(dest);
       return true;
     } catch (e) {
       if (dlStopFlag) throw new Error('已取消');

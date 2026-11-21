@@ -2,6 +2,7 @@
 shell/node_modules/
 shell/ui/
 shell/runtime/
+shell/agent/
 out-electron/
 
 /.data/
